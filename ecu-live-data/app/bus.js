@@ -59,15 +59,15 @@ const IDS = {
 };
 
 const DEFS = [
-    { id: IDS.torque, name: 'Torque (car bus)', group: 'Load', unit: 'Nm', quantity: 'torque', decimals: 0, min: 0, max: 800,
+    { id: IDS.torque, name: 'Torque (car bus)', group: 'Load', unit: 'Nm', quantity: 'torque', decimals: 0, min: 0, max: 1000,
         description: 'The crankshaft torque the DDE sends to the gearbox and the displays (what M Vitals shows)' },
-    { id: IDS.torqueSport, name: 'Torque (sport display)', group: 'Load', unit: 'Nm', quantity: 'torque', decimals: 0, min: 0, max: 800,
+    { id: IDS.torqueSport, name: 'Torque (sport display)', group: 'Load', unit: 'Nm', quantity: 'torque', decimals: 0, min: 0, max: 1000,
         description: 'The sport display\'s torque, % of the maximum in the settings' },
-    { id: IDS.powerSport, name: 'Power (sport display)', group: 'Load', unit: 'kW', quantity: 'power', decimals: 0, min: 0, max: 300,
+    { id: IDS.powerSport, name: 'Power (sport display)', group: 'Load', unit: 'kW', quantity: 'power', decimals: 0, min: 0, max: 480,
         description: 'The sport display\'s power, % of the maximum in the settings' },
-    { id: IDS.powerBus, name: 'Power (car bus)', group: 'Load', unit: 'kW', quantity: 'power', decimals: 0, min: 0, max: 300,
+    { id: IDS.powerBus, name: 'Power (car bus)', group: 'Load', unit: 'kW', quantity: 'power', decimals: 0, min: 0, max: 480,
         description: 'Engine torque (car bus) × engine speed / 9549' },
-    { id: IDS.powerDde, name: 'Power (DDE torque)', group: 'Load', unit: 'kW', quantity: 'power', decimals: 0, min: 0, max: 300,
+    { id: IDS.powerDde, name: 'Power (DDE torque)', group: 'Load', unit: 'kW', quantity: 'power', decimals: 0, min: 0, max: 480,
         description: 'Engine torque (the DDE\'s diagnostic value) × engine speed / 9549' },
     { id: IDS.oil, name: 'Oil temp (car bus)', group: 'Temperatures', unit: '°C', quantity: 'temperature', decimals: 0, min: -20, max: 150,
         description: 'The engine oil temperature the car shows (what M Vitals shows)' },
