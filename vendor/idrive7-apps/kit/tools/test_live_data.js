@@ -195,6 +195,70 @@ async function main() {
         });
     }));
 
+    // fuel quality (KQE 4035, issue #166): 3 counts, then 5 refuellings of mileage (x 8 km) and quality range
+    {
+        const reply = [0x62, 0x40, 0x35, 0x00, 0x02, 0x00, 0x05, 0x00, 0x1B, 0x07, 0xD0, 0x03, 0x07, 0x9E, 0x02];
+        while (reply.length < 3 + 21) reply.push(0);
+        const v = decode(dme['4035'], reply);
+        assert.deepStrictEqual([v[0].value, v[1].value, v[2].value], [2, 5, 27], 'fuel quality: refuellings by range');
+        assert.deepStrictEqual([v[3].value, v[4].value, v[5].value, v[6].value], [16000, 3, 15600, 2], 'fuel quality: the last refuellings, km x 8 and range');
+        const items = USEFUL[0x12].find((g) => g.group === 'Fuel quality').items;
+        assert.strictEqual(items.length, 15, 'fuel quality: adapted, time, 3 counts, 5 x (mileage, range)');
+        assert.strictEqual(items.find((it) => it.name === 'Refuelling 1, fuel quality').map[v[4].raw], 'High');
+    }
+
+    /* ---------- Energy: mapped units, field offsets, scaling and converter directions ---------- */
+    const energyCatalogs = {};
+    for (const sgbd of ['BATT48', 'PCU48']) {
+        const cat = JSON.parse(fs.readFileSync(path.join(BUILTIN, sgbd + '.json'), 'utf8'));
+        const meta = JSON.parse(fs.readFileSync(path.join(BUILTIN, sgbd + '.meta.json'), 'utf8'));
+        energyCatalogs[sgbd] = cat;
+        assert.ok(meta.builtin && meta.sgbd === sgbd);
+        assert.deepStrictEqual(meta.order.slice().sort(), Object.keys(cat).sort());
+        assert.ok(Object.values(sgbdIndex).includes(sgbd), sgbd + ': discoverable');
+        const names = new Set();
+        USEFUL.bySgbd[sgbd].forEach((g) => g.items.forEach((it) => {
+            assert.ok(!names.has(it.name), sgbd + ': duplicate ' + it.name);
+            names.add(it.name);
+            it.c.forEach((c) => {
+                const [did, fi] = c.split('/'), e = cat[did];
+                assert.ok(e && (e.sid === undefined || e.sid === 0x22), c + ': read-only identifier');
+                const f = e.f[Number(fi || 0)];
+                assert.ok(f, c + ': field exists');
+                if (it.u && f.u && f.u !== it.u) assert.ok(USEFUL.CONVERT[f.u] && USEFUL.CONVERT[f.u][it.u]);
+            });
+        }));
+    }
+    assert.strictEqual(USEFUL.bySgbd.PCU48_2, undefined, 'do not reuse PCU48 offsets for PCU48_2');
+    assert.strictEqual(fs.existsSync(path.join(BUILTIN, 'PCU48_2.json')), false);
+    const battData = Buffer.alloc(28);
+    battData.writeUInt16BE(4850, 0);
+    battData.writeInt16BE(-125, 2);
+    battData.writeInt16BE(50, 4);
+    battData[14] = 76; battData[15] = 95;
+    battData.writeUInt16BE(4860, 16);
+    battData[18] = 100; battData[23] = 90; battData[26] = 92;
+    const batt = decode(energyCatalogs.BATT48.AA56, [0x62, 0xAA, 0x56].concat(Array.from(battData)));
+    assert.deepStrictEqual([batt[0].value, batt[1].value, batt[2].value], [48.5, -12.5, 25]);
+    assert.deepStrictEqual([batt[7].value, batt[8].value, batt[9].value, batt[10].value, batt[15].value, batt[18].value],
+        [76, 95, 48.6, 10, 9, 92]);
+    assert.strictEqual(decode(energyCatalogs.BATT48['50AC'], [0x62, 0x50, 0xAC, 88])[0].value, 88);
+    const pcuData = Buffer.alloc(13);
+    pcuData.writeUInt16BE(14200, 0); pcuData.writeUInt16BE(48500, 2);
+    pcuData.writeInt16BE(-123, 4); pcuData.writeInt16BE(45, 6);
+    pcuData.writeInt16BE(-175, 8); pcuData.writeInt16BE(218, 10);
+    const flowItem = USEFUL.bySgbd.PCU48[0].items.find((it) => it.c.includes('DA90/6'));
+    for (const [mode, text] of [[9, '48 V -> 12 V (buck)'], [10, '12 V -> 48 V (boost)'],
+        [3, 'Passive standby'], [5, 'Error'], [255, 'Invalid']]) {
+        pcuData[12] = mode;
+        const pcu = decode(energyCatalogs.PCU48.DA90, [0x62, 0xDA, 0x90].concat(Array.from(pcuData)));
+        assert.deepStrictEqual(pcu.map((v) => v.value), [14200, 48500, -12.3, 4.5, -175, 218, mode]);
+        assert.strictEqual(flowItem.map[pcu[6].raw], text);
+        assert.strictEqual((pcu[0].value * USEFUL.CONVERT.mV.V).toFixed(2), '14.20');
+    }
+    assert.strictEqual(flowItem.map[99], undefined, 'unknown modes are not assigned a direction');
+    assert.strictEqual(decode(energyCatalogs.PCU48.DA90, [0x62, 0xDA, 0x90, 0])[6].why, 'reply too short');
+
     /* ---------- the catalog tool keeps only readable rows ---------- */
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'live-data-'));
     try {
@@ -314,6 +378,10 @@ async function main() {
     assert.ok(sc.min === 0 && sc.max === 7000 && sc.red === 6500 && sc.zones.some((z) => z.color === 'crit' && z.from === 6500), 'rpm: 0-7000, red from 6500');
     sc = SCR.scale('18:useful:Engine oil (after filter)', 'Engine oil (after filter)', '°C', null);
     assert.ok(sc.min === 40 && sc.max === 150 && sc.zones.length === 2, 'oil: 40-150, warning and red');
+    sc = SCR.scale('18:useful:Engine oil (after filter)', 'Engine oil (after filter)', '°F', null);
+    assert.ok(sc.min === 100 && sc.max === 310 && sc.zones.length === 2 && sc.zones[1].from === 284 && sc.zones[1].to === 310, 'oil in °F: the °C scale converted, ends in tens ' + JSON.stringify(sc));
+    sc = SCR.scale('sig:coolant', null, '°F', { lo: 190, hi: 200 });
+    assert.ok(sc.min === 100 && sc.max === 270 && sc.red === 248, 'coolant in °F: red from 120 °C = 248 °F');
     assert.strictEqual(SCR.scale('sig:flow', null, 'l/h', { lo: 0, hi: 12 }).max, 40, 'l/h: 40 while below');
     assert.strictEqual(SCR.scale('sig:flow', null, 'l/h', { lo: 0, hi: 50.7 }).max, 60, 'l/h: grows to the next round number');
     assert.strictEqual(SCR.scale('x', null, 'bar', null).max, 3, 'by unit');
@@ -359,6 +427,7 @@ async function main() {
     const setting = (k) => aspec.settings.find((x) => x.key === k);
     assert.ok(setting('currency').default === 'EUR' && setting('currency').options.some((o) => o[0] === 'EUR'), 'currency: EUR');
     assert.strictEqual(setting('details').default, false, 'sources and unverified values: off');
+    assert.ok(setting('tempUnit').default === 'c' && setting('tempUnit').options.map((o) => o[0]).join() === 'c,f', 'temperature unit: Celsius by default, or Fahrenheit');
     assert.ok(setting('show').options.some((o) => o[0] === setting('show').default) && setting('show').reset >= 2, 'unit pages: a known default, reset from the old one');
     assert.ok(/^1\.\d+\.\d+$/.test(aspec.version), 'version 1.x');
     assert.ok(!aspec.settings.some((x) => /UAH/.test(String(x.default))), 'no local currency as a default');

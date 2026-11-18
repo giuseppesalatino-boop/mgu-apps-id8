@@ -2,7 +2,8 @@
 
 // Kit runtime (display.js, renderd.js, mgu.js Settings) against a stand-in mgu-render on a Unix socket: the
 // unchanged-frame skip and its keepalive, a sheet that throws, X_STATE front flips, a reconnect after a cut
-// message, the theme kept on a fresh install. No SDK, renderer or car needed:
+// message, the theme kept on a fresh install; signals.js's queue of native calls against a stand-in someip module.
+// No SDK, renderer or car needed:
 //   node kit/tools/test_runtime.js
 
 const assert = require('assert');
@@ -98,8 +99,10 @@ test('unchanged frames: not sent again, but one a second (the renderer hides an 
         assert.strictEqual(c.frames.length, n + 1, 'the header changed');
         page(t.d, 20); await sleep(50);
         assert.strictEqual(c.frames.length, n + 1, 'the same page with the same header');
-        // shown again: the same page goes out at once
+        // shown again: the picture comes back once the HMI's page has opened (display.js SHOW_DELAY_MS, 350 ms),
+        // then the same page goes out at once
         t.ui.setVisible(false); t.ui.setVisible(true);
+        await sleep(450);
         n = c.frames.length;
         page(t.d, 20); await sleep(50);
         assert.strictEqual(c.frames.length, n + 1, 'shown again');
@@ -199,6 +202,103 @@ test('the one-time move to the new default theme: a theme picked on a fresh inst
     assert.strictEqual(new S(schema).get('theme'), 'amber');
 });
 
+test('settings: aliases, "when" and "group" (the drawn settings sheet), "hidden"', async () => {
+    const src = fs.readFileSync(path.join(__dirname, '..', 'runtime', 'mgu.js'), 'utf8').replace(/\r\n/g, '\n');
+    const cls = src.match(/class Settings[\s\S]*?\n}\n/)[0];
+    const dd = path.join(dir, 'when');
+    fs.mkdirSync(dd);
+    const S = new Function('fs', 'path', 'DATA_DIR', 'log', cls + '\nreturn Settings;')(fs, path, dd, { warn() {}, error() {} });
+    fs.writeFileSync(path.join(dd, 'settings.json'), JSON.stringify({ tempUnit: 'F' }));
+    const schema = [
+        { key: 'tempUnit', label: 'Temperature unit', type: 'choice', default: 'c', options: [['c', 'Celsius'], ['f', 'Fahrenheit']], aliases: { C: 'c', F: 'f' } },
+        { key: 'torqueUnit', label: 'Torque unit', type: 'choice', default: 'nm', options: [['nm', 'Nm'], ['kgm', 'kgm']] },
+        { key: 'maxKgm', label: 'Torque gauge max', type: 'number', default: 100, steps: [50, 100], when: { torqueUnit: 'kgm' } },
+        { key: 'showA', label: 'Tile A', type: 'choice', default: 'auto', options: [['auto', 'Auto'], ['off', 'Hide']], group: 'Tiles' },
+        { key: 'showB', label: 'Tile B', type: 'choice', default: 'auto', options: [['auto', 'Auto'], ['off', 'Hide']], group: 'Tiles' },
+        { key: 'names', label: 'Names', type: 'choice', default: 'en', options: [['en', 'English']], hidden: true },
+        { key: 'advanced', label: 'Advanced settings', type: 'bool', default: false },
+        { key: 'rate', label: 'Display rate', type: 'number', default: 10, steps: [5, 10], when: { advanced: true } },
+    ];
+    const st = new S(schema);
+    assert.strictEqual(st.get('tempUnit'), 'f', 'a value saved as F reads as f');
+    const { listSheet } = require(path.join(__dirname, '..', 'runtime', 'sheet.js'));
+    const sh = listSheet(st, null, {});
+    const labels = () => sh.rows().map((r) => r.label);
+    assert.deepStrictEqual(labels(), ['Temperature unit', 'Torque unit', 'Tiles', 'Advanced settings'], 'kgm-only, grouped, hidden and advanced left out');
+    st.set('torqueUnit', 'kgm');
+    st.set('advanced', true);
+    assert.deepStrictEqual(labels(), ['Temperature unit', 'Torque unit', 'Torque gauge max', 'Tiles', 'Advanced settings', 'Display rate'], 'offered once their "when" holds');
+    // the group: one row that opens its settings; Back returns to it
+    sh.focus = 3; sh.choose();
+    assert.deepStrictEqual([sh.group, labels()], ['Tiles', ['Tile A', 'Tile B']]);
+    sh.focus = 1; sh.choose();
+    assert.strictEqual(sh.open.key, 'showB', 'a grouped setting opens its values');
+    sh.sub = 1; sh.choose();
+    assert.strictEqual(st.get('showB'), 'off');
+    assert.deepStrictEqual([sh.back(), sh.group, sh.focus], [null, null, 3], 'Back: the main list, on the group');
+    assert.strictEqual(sh.back(), 'close');
+    // a switch that hides the setting the focus was on: the focus stays on the list
+    sh.focus = 5; st.set('advanced', false);
+    const r = new Proxy({}, { get: (o, k) => (k === 'extra' ? 0 : () => 40) });
+    sh.draw(r, { bg: '#000', text: '#fff', dim: '#888', sel: '#00f' });
+    assert.strictEqual(sh.focus, labels().length - 1);
+    // the app's own rows (ctx.settingsRow) at the very bottom; one opens its sheet in the settings' place, whose
+    // Back ('close', from the controller or a tap) returns to the settings, not out of them
+    const child = { drawn: 0, moved: 0, draw() { this.drawn++; return [{ x: 0, y: 0, w: 10, h: 10, act: () => 'close' }]; }, move(d) { this.moved += d; }, press: () => null, back: () => 'close' };
+    const sx = listSheet(st, null, { extra: () => [{ label: 'Logs', value: () => 'lately', open: () => child }] });
+    const rows = sx.rows(), last = rows[rows.length - 1];
+    assert.deepStrictEqual([last.label, last.value, last.kind], ['Logs', 'lately', 'more'], 'the extra row last');
+    sx.focus = rows.length - 1; sx.choose();
+    assert.strictEqual(sx.child, child, 'the row opens its sheet');
+    sx.move(2);
+    const tg = sx.draw(r, { bg: '#000', text: '#fff', dim: '#888', sel: '#00f' });
+    assert.deepStrictEqual([child.drawn, child.moved, sx.focus], [1, 2, rows.length - 1], 'drawn and moved by the child');
+    assert.strictEqual(await tg[0].act(), null, "a child tap's 'close': not out of the settings");
+    assert.strictEqual(sx.child, null, 'back on the settings');
+    sx.choose(); assert.strictEqual(await sx.back(), null); assert.strictEqual(sx.child, null, 'its Back: the settings');
+    assert.strictEqual(sx.back(), 'close', 'then out');
+    sx.group = 'Tiles'; assert(!sx.rows().some((x) => x.label === 'Logs'), 'not inside a group');
+    // a child that throws while drawing: dropped (the error for display.js's log), the settings drawn next
+    sx.group = null;
+    const broken = { draw() { throw new Error('boom'); }, move() {}, press: () => null, back: () => 'close' };
+    const sb = listSheet(st, null, { extra: () => [{ label: 'Logs', open: () => broken }] });
+    sb.focus = sb.rows().length - 1; sb.choose();
+    assert.throws(() => sb.draw(r, { bg: '#000', text: '#fff', dim: '#888', sel: '#00f' }), /boom/, 'its error goes up to be logged');
+    assert.strictEqual(sb.child, null, 'the child dropped');
+    sb.draw(r, { bg: '#000', text: '#fff', dim: '#888', sel: '#00f' });
+    // an extra row whose list fails: the settings without it
+    const sc = listSheet(st, null, { extra: () => { throw new Error('no rows'); } });
+    assert(sc.rows().length > 0 && !sc.rows().some((x) => x.label === 'Logs'), 'a failing extra list: the settings still');
+});
+
+test('settings: a number kept in kW / °C shown in the unit chosen ("unitBy", issue #173)', async () => {
+    const src = fs.readFileSync(path.join(__dirname, '..', 'runtime', 'mgu.js'), 'utf8').replace(/\r\n/g, '\n');
+    const cls = src.match(/class Settings[\s\S]*?\n}\n/)[0];
+    const dd = path.join(dir, 'unitby');
+    fs.mkdirSync(dd);
+    const S = new Function('fs', 'path', 'DATA_DIR', 'log', cls + '\nreturn Settings;')(fs, path, dd, { warn() {}, error() {} });
+    const schema = [
+        { key: 'powerUnit', label: 'Power unit', type: 'choice', default: 'kw', options: [['kw', 'kW'], ['hp', 'hp'], ['ps', 'PS']] },
+        { key: 'tempUnit', label: 'Temperature unit', type: 'choice', default: 'c', options: [['c', 'Celsius'], ['f', 'Fahrenheit']] },
+        { key: 'maxPower', label: 'Max power', type: 'number', unit: 'kW', unitBy: 'powerUnit', units: { hp: { unit: 'hp', mul: 1.34102 }, ps: { unit: 'PS', mul: 1.35962 } }, default: 215, steps: [200, 215] },
+        { key: 'oilWarn', label: 'Oil temp warning', type: 'number', unit: '°C', unitBy: 'tempUnit', units: { f: { unit: '°F', mul: 1.8, add: 32 } }, default: 125, steps: [120, 125], labels: { 120: 'Low' } },
+    ];
+    const st = new S(schema);
+    assert.deepStrictEqual([st.display('maxPower'), st.display('oilWarn')], ['215 kW', '125 °C']);
+    st.set('powerUnit', 'hp'); st.set('tempUnit', 'f');
+    assert.deepStrictEqual([st.display('maxPower'), st.display('oilWarn')], ['288 hp', '257 °F']);
+    st.set('powerUnit', 'ps');
+    assert.strictEqual(st.display('maxPower'), '292 PS');
+    assert.strictEqual(st.get('maxPower'), 215, 'kept in kW');
+    const { listSheet } = require(path.join(__dirname, '..', 'runtime', 'sheet.js'));
+    const sh = listSheet(st, null, {});
+    sh.focus = 2; sh.choose();
+    assert.deepStrictEqual(sh.rows().map((r) => r.label), ['272 PS', '292 PS'], 'the value list in the unit chosen');
+    sh.back();
+    sh.focus = 3; sh.choose();
+    assert.deepStrictEqual(sh.rows().map((r) => r.label), ['Low', '257 °F'], 'a value\'s own label stays');
+});
+
 test('a new scale keeps the uploads (the renderer keeps them), a new size sends them again', async () => {
     const t = await setup(), g = t.d.gpu;
     try {
@@ -210,6 +310,101 @@ test('a new scale keeps the uploads (the renderer keeps them), a new size sends 
         g.place(Object.assign({}, pl, { w: pl.w - 8 }));
         assert.deepStrictEqual([g.sent.atlas.size, g.sent.ramp.size, g.sent.image.size], [0, 0, 0], 'a new size');
     } finally { t.end(); }
+});
+
+test('in front without the controller (another renderer held it at connect): connected again, the controller then', async () => {
+    const t = await setup();
+    try {
+        // the renderer offering no controller on this connection, as when the Store's renderer held it
+        let conns = 0, now = null;
+        onConn = (c) => { conns++; now = c; c.send(X_READY, u32(1, 1, 7)); c.send(READY, u32(4, 1920, 720, 1)); };
+        t.d.gpu.info.controller = false; t.d.ctlTryT = 0;
+        t.c.send(X_STATE, u32(1, 0, 1));
+        assert(await waitFor(() => conns === 1 && t.d.gpu.ready && t.d.gpu.info && t.d.gpu.info.controller, 3000), 'connected again at once, the controller offered');
+        assert(await waitFor(() => t.d.gpu.grabbing, 1000), 'and taken');
+        // not again within 30 s, nor with the controller there
+        now.send(X_STATE, u32(1, 0, 1)); await sleep(200);
+        assert.strictEqual(conns, 1, 'once');
+        assert.strictEqual(t.d.ctlTries, 1, 'one try counted');
+    } finally { t.end(); }
+});
+
+test('iDrive 8 (the Store\'s renderer offers no controller there): never connected again for it', async () => {
+    const t = await setup();
+    try {
+        let conns = 0;
+        onConn = () => { conns++; };
+        t.d.gpu.screen = { w: 2880, h: 960 }; t.d.gpu.info.controller = false; t.d.ctlTryT = 0; t.d.ctlTries = 0;
+        t.d._ctlRetry(t.d.gpu);
+        await sleep(300);
+        assert.strictEqual(conns, 0, 'no new connection');
+        assert.strictEqual(t.d.ctlTries, 0, 'no try counted');
+    } finally { t.end(); }
+});
+
+/* signals.js: one native call at a time, method calls (urgent: UDS) ahead of the watch() set-ups waiting, and never
+ * so many urgent calls in a row that the set-ups are shut out. A copy of signals.js, with its interface configs in
+ * someipdefs/ next to it, against a stand-in for the native someip module that logs each native call as the queue
+ * lets it through: 'call', 'build <interface>', 'avail <interface>', 'sub <field>'. */
+const URGENT_RUN = 4;
+function signalsWithFakeNative() {
+    const app = path.join(dir, 'signals-' + cases.length + '-' + Date.now()), kit = path.join(app, 'javascript', 'kit');
+    fs.mkdirSync(kit, { recursive: true });
+    fs.mkdirSync(path.join(app, 'someipdefs'));                      // signals.js DIRS: kit/../../someipdefs
+    ['test.Uds', 'test.Cds', 'test.Gear'].forEach((n) =>
+        fs.writeFileSync(path.join(app, 'someipdefs', n.replace(/\./g, '_') + '.json'), JSON.stringify({ name: n, fields: {} })));
+    const file = path.join(kit, 'signals.js');
+    fs.copyFileSync(path.join(__dirname, '..', 'runtime', 'signals.js'), file);
+    const log = [];
+    const native = (what, v) => { log.push(what); return new Promise((r) => setImmediate(() => r(v))); };
+    const fake = {
+        buildProxy: (cfg) => native('build ' + cfg.name, {
+            init: () => Promise.resolve(),
+            callMethod: () => native('call', {}),
+            subscribeToAvailability: () => { log.push('avail ' + cfg.name); return null; },
+            subscribe: (o) => native('sub ' + o.name),
+            isAvailable: () => true,
+            getValue: () => Promise.resolve({}),
+        }),
+    };
+    const Module = require('module'), load = Module._load;
+    Module._load = function (request) { return request === 'someip' ? fake : load.apply(this, arguments); };
+    try { return { sig: require(file), log }; } finally { Module._load = load; }
+}
+
+test('signals: a method call goes ahead of the watch() set-ups waiting', async () => {
+    const { sig, log } = signalsWithFakeNative();
+    const uds = await sig.proxy('test.Uds', '1');
+    log.length = 0;
+    const watches = ['test.Cds', 'test.Gear'].map((n) => sig.watch(n, '1', { a: () => {}, b: () => {} }));
+    await sig.call(uds, 'read');
+    // (the first set-up was already running when the call came)
+    assert(log.indexOf('call') === 1, 'the call ran as native call ' + (log.indexOf('call') + 1) + ': ' + log.join(', '));
+    const w = await Promise.all(watches);
+    assert(w.every((x) => !x.error && x.available), JSON.stringify(w.map((x) => x.error)));
+});
+
+test('signals: watch() set-ups still go while method calls keep the urgent lane full', async () => {
+    const { sig, log } = signalsWithFakeNative();
+    const uds = await sig.proxy('test.Uds', '1');
+    log.length = 0;
+    // three UDS readers, each asking again as soon as its answer comes: the urgent lane is never empty
+    let stop = false, calls = 0;
+    const reader = async () => { while (!stop && calls < 400) { calls++; await sig.call(uds, 'read'); } };
+    const readers = [reader(), reader(), reader()];
+    for (let i = 0; i < 10; i++) await new Promise((r) => setImmediate(r));
+    const from = log.length;
+    const w = await sig.watch('test.Cds', '1', { rpm: () => {}, gear: () => {} });
+    stop = true;
+    await Promise.all(readers);
+    assert(!w.error && w.available, 'watch: ' + w.error);
+    // its set-ups in order (the proxy, its availability, a subscribe per field), each after at most URGENT_RUN calls
+    const after = log.slice(from), runs = [];
+    let run = 0;
+    after.forEach((x) => { if (x === 'call') run++; else { runs.push(run); run = 0; } });
+    assert.deepStrictEqual(after.filter((x) => x !== 'call'), ['build test.Cds', 'avail test.Cds', 'sub rpm', 'sub gear']);
+    assert(runs.every((n) => n <= URGENT_RUN), 'calls in a row before each set-up: ' + runs.join(', ') + ' (at most ' + URGENT_RUN + ')');
+    assert(calls < 40, 'the watch done within ' + calls + ' calls');
 });
 
 (async () => {

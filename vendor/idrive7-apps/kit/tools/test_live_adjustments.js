@@ -20,8 +20,12 @@ function dme(kind) {
         inflight--;
         const addr = () => Buffer.from(data.slice(1, 5)).toString('hex').toUpperCase();
         if (kind === 'bm3') {
-            if (sid === 0x2C) return [0x6C, 0x02, 0xF3, 0x01];
-            if (sid === 0x22) return [0x62, 0xF3, 0x01].concat(Array.from(Buffer.from('BM3_R#011000#')));
+            if (sid === 0x2C) return [0x6C, data[0], 0xF3, 0x01];
+            if (sid === 0x22) {
+                const marker = Buffer.alloc(255);
+                marker.write('BM3_R#011000#');
+                return [0x62, 0xF3, 0x01].concat(Array.from(marker));
+            }
             if (sid === 0x23) return [0x63].concat(memory[addr()].slice(0, data[5]));
             if (sid === 0x3D) { memory[addr()] = data.slice(6); return [0x7D]; }
             if (sid === 0x2E) return [0x6E].concat(data.slice(0, 2));
@@ -61,33 +65,43 @@ const NONE = { map: false, cooling: false, burbles: false, asd: false };
 // A DSC (0x29) that behaves as on ezl0l's G22: DBE1 reads 0 with the engine off, the write is
 // accepted only with the engine off, and the value holds until the ignition is cycled.
 function dsc(kind) {
-    const st = { calls: [], engine: false, lmv: 1, written: false, session: 1, front: [0x00, 0x9E, 0x00, 0x02, 0x00, 0x98, 0x00, 0x20] };
+    // front: ezl0l's AWD sample; its requested-torque qualifier (last byte) follows the written value
+    // (00 20 active, 00 E8 switched off, as in his logs) unless a test sets st.front itself
+    const st = { calls: [], engine: false, lmv: 1, written: false, session: 1, front: null };
+    const front = () => st.front || [0x00, 0x9E, 0x00, 0x02, 0x00, 0x98, 0x00, st.lmv ? 0x20 : 0xE8];
+    // g01: a G01 X3 M40i (DSC_G30N 0F2850, LMV 0F29E0) as measured: the write is taken with the
+    // engine running too, DBE1 reads the value with the engine off as well, 01 brings xDrive back
+    const g01 = kind === 'g01';
     const physical = async (target, sid, data, timeoutMs, accept) => {
         const req = [sid].concat(data).map((b) => b.toString(16).padStart(2, '0')).join(' ');
         st.calls.push((target === 0x29 ? 'dsc ' : target === 0x19 ? 'lmv ' : target === 0x39 ? 'vip ' : 'other ') + req);
         let r;
         // G05 xDrive45e (issue #52): IB_G05 at 0x29 answers DBE1 but it does nothing; VIP_G05 at 0x39
-        const g05 = kind === 'g05' || kind === 'g05vip33';
+        // g05ice: a diesel X5 (IB_G05 0F2500, VIP_G05 0F2520) as measured: the VIP takes the job only with the engine
+        // off and the ignition on; the engine running gets NRC 33
+        const g05 = kind === 'g05' || kind === 'g05vip33' || kind === 'g05ice';
         if (g05 && target === 0x29 && sid === 0x22 && data[0] === 0xF1) r = [0x62, 0xF1, 0x50, 0x00, 0x0F, 0x25, 0x00];
-        else if (g05 && target === 0x39 && sid === 0x22 && data[0] === 0xF1) r = [0x62, 0xF1, 0x50, 0x00, 0x0F, 0x25, 0x30];
+        else if (g05 && target === 0x39 && sid === 0x22 && data[0] === 0xF1) r = [0x62, 0xF1, 0x50, 0x00, 0x0F, 0x25, kind === 'g05ice' ? 0x20 : 0x30];
         else if (g05 && target === 0x39 && sid === 0x22 && data[0] === 0xDB && data[1] === 0x44) r = [0x62, 0xDB, 0x44, st.vip === undefined ? 1 : st.vip];
         else if (g05 && target === 0x39 && sid === 0x2E && data[0] === 0xDB && data[1] === 0x2F) {
-            if (kind === 'g05vip33') r = [0x7F, 0x2E, 0x33];
+            if (kind === 'g05vip33' || (kind === 'g05ice' && st.engine)) r = [0x7F, 0x2E, 0x33];
+            else if (kind === 'g05ice') { st.vip = data[2]; r = [0x6E, 0xDB, 0x2F]; }
             else if (!st.engine) r = [0x7F, 0x2E, 0x22];
             else { st.vip = data[2]; r = [0x6E, 0xDB, 0x2F]; }
         } else if (target === 0x39 && sid === 0x22 && data[0] === 0xF1) r = [0x62, 0xF1, 0x50, 0x00, 0x0F, 0x25, 0x30];  // G22: VIP_G05 too
-        else if (target === 0x19 && sid === 0x22 && data[0] === 0xF1 && data[1] === 0x50) r = kind === 'nolmv' ? [0x7F, 0x22, 0x31] : [0x62, 0xF1, 0x50, 0x00, 0x0F, 0x21, 0x80];
-        else if (target === 0x19 && sid === 0x22 && data[0] === 0xDB && data[1] === 0x32) r = kind === 'nolmv' ? [0x7F, 0x22, 0x31] : [0x62, 0xDB, 0x32].concat(st.front);
+        else if (target === 0x19 && sid === 0x22 && data[0] === 0xF1 && data[1] === 0x50) r = kind === 'nolmv' ? [0x7F, 0x22, 0x31] : [0x62, 0xF1, 0x50, 0x00, 0x0F, g01 ? 0x29 : 0x21, g01 ? 0xE0 : 0x80];
+        else if (target === 0x19 && sid === 0x22 && data[0] === 0xDB && data[1] === 0x32) r = kind === 'nolmv' ? [0x7F, 0x22, 0x31] : [0x62, 0xDB, 0x32].concat(front());
         else if (target !== 0x29) r = [0x7F, sid, 0x11];
         else if (kind === 'none') r = [0x7F, sid, 0x31];
-        else if (sid === 0x22 && data[0] === 0xF1 && data[1] === 0x50) r = [0x62, 0xF1, 0x50, 0x00, 0x0F, 0x25, 0x10];
-        else if (sid === 0x22 && data[0] === 0xDB && data[1] === 0xE1) r = [0x62, 0xDB, 0xE1, st.engine ? st.lmv : 0];
+        else if (sid === 0x22 && data[0] === 0xF1 && data[1] === 0x50) r = [0x62, 0xF1, 0x50, 0x00, 0x0F, g01 ? 0x28 : 0x25, g01 ? 0x50 : 0x10];
+        else if (sid === 0x22 && data[0] === 0xDB && data[1] === 0xE1) r = [0x62, 0xDB, 0xE1, st.engine || g01 ? st.lmv : 0];
         else if (sid === 0x10) {
             if (kind === 'nosession') r = [0x7F, 0x10, 0x22];
             else { st.session = data[0]; r = [0x50, data[0], 0x00, 0x32, 0x01, 0xF4]; }
         } else if (sid === 0x2E && data[0] === 0xDB && data[1] === 0xE1) {
             if ((kind === 'session' || kind === 'nosession' || kind === 'session7e') && st.session !== 3) r = [0x7F, 0x2E, kind === 'session7e' ? 0x7E : 0x7F];
-            else if (kind === 'refuse' || st.engine) r = [0x7F, 0x2E, st.engine ? 0x33 : 0x22];
+            else if (kind === 'refuse' || (st.engine && !g01)) r = [0x7F, 0x2E, st.engine ? 0x33 : 0x22];
+            else if (kind === 'dsc33') r = [0x7F, 0x2E, 0x33];      // G26 outside diagnostic mode (issue #63)
             else { st.lmv = data[2]; st.written = true; r = [0x6E, 0xDB, 0xE1]; }
         } else r = [0x7F, sid, 0x31];
         if (accept) assert(accept(r), 'reply filter rejects the answer to ' + req);
@@ -95,6 +109,51 @@ function dsc(kind) {
     };
     st.link = { available: true, diag: { available: true, physical } };
     return st;
+}
+
+/** The PIN in front of the Engine Map tab (pin.js): choose, confirm, unlock, wrong tries, off only with the PIN. */
+function pinChecks() {
+    const { PinLock, WAIT_MS } = require('../../apps/live_adjustments/pin');
+    const vals = { mapPin: false, mapPinCode: {} };
+    let clock = 1000;
+    let pin = null;
+    const set = (k, v) => { vals[k] = v; pin.settingChanged(k, v); };
+    pin = new PinLock({ get: (k) => vals[k], set, now: () => clock });
+    const type = (d) => String(d).split('').forEach((c) => pin.digit(Number(c)));
+    assert.strictEqual(pin.locked(), false, 'locked with the setting off');
+    set('mapPin', true);
+    assert.strictEqual(pin.locked(), true);
+    assert.strictEqual(pin.view().mode, 'choose');
+    type('1234'); assert.strictEqual(pin.view().mode, 'again');
+    type('9999'); assert.strictEqual(pin.view().mode, 'choose', 'two different PINs were taken');
+    type('1234'); type('1234');
+    assert.strictEqual(pin.locked(), false, 'not open after choosing');
+    assert(vals.mapPinCode.hash && !JSON.stringify(vals.mapPinCode).includes('1234'), 'the PIN is saved as it was typed');
+    pin.lock();
+    assert.strictEqual(pin.locked(), true, 'still open after leaving the screen');
+    type('12'); pin.back(); type('235');            // 1235: wrong
+    assert.strictEqual(pin.locked(), true, 'Delete did not take the digit back');
+    assert(/4 tries left/.test(pin.view().msg));
+    assert.strictEqual(pin.view('Burbles').title, 'Burbles is locked');
+    type('1234'); assert.strictEqual(pin.locked(), false, 'the right PIN did not open it');
+    pin.lock();
+    for (let i = 0; i < 5; i++) type('0000');
+    assert(pin.view().wait > 0, 'no wait after 5 wrong PINs');
+    type('1234'); assert.strictEqual(pin.locked(), true, 'taken during the wait');
+    clock += WAIT_MS + 1;
+    type('1234'); assert.strictEqual(pin.locked(), false);
+    // off while locked: back on until the PIN; off while open: at once
+    pin.lock();
+    set('mapPin', false);
+    assert.strictEqual(vals.mapPin, true, 'turned off without the PIN');
+    assert.strictEqual(pin.view().title, 'Enter the PIN to turn the lock off');
+    type('1234');
+    assert.strictEqual(vals.mapPin, false);
+    assert.deepStrictEqual(vals.mapPinCode, {}, 'the PIN outlived the lock');
+    set('mapPin', true); type('5555'); type('5555');
+    set('mapPin', false);
+    assert.strictEqual(vals.mapPin, false, 'open: not off at once');
+    assert.deepStrictEqual(vals.mapPinCode, {});
 }
 
 async function xdriveChecks() {
@@ -139,17 +198,23 @@ async function xdriveChecks() {
     assert.strictEqual(s.x.view().confirming, true);
     await s.x.requestOff();
     assert.deepStrictEqual(writes(s.d), ['dsc 2e db e1 00']);
-    assert.strictEqual(s.x.view().mode, 'REQUESTED');
     assert.strictEqual(s.x.noteType, 'go');
-    // engine started in the same ignition cycle: DBE1 read 0 -> RWD
+    // the transfer case is read at once after the accepted write: its qualifier (.. 00 E8) says off
+    assert.strictEqual(s.x.view().mode, 'RWD');
+    assert.strictEqual(s.x.view().modeFrom, 'lmv');
+    assert.strictEqual(s.events.filter((e) => e.event === 'command_accepted').pop().physicalEffect, 'verified_by_lmv');
+    // engine started in the same ignition cycle: DBE1 read 0, the LMV still says off -> RWD
     s.car.v.rpm = 700; s.d.engine = true; clock += 5000;
     await s.x.tick();
     assert.strictEqual(s.x.view().mode, 'RWD');
-    // ignition cycled (the DSC is back to 1): AWD, the request is forgotten
+    // ignition cycled (the DSC is back to 1, the LMV qualifier back to 20): AWD, the request is forgotten
     s.d.lmv = 1; clock += 5000;
     await s.x.tick();
     assert.strictEqual(s.x.view().mode, 'AWD');
     assert.strictEqual(s.x.requested, false);
+    // no "xDrive on" on a DSC_G20: not measured there, the button is not offered and a press sends nothing
+    assert.strictEqual(s.x.view().onAvailable, false);
+    await s.x.requestOn(); await s.x.requestOn();
     assert(!s.d.calls.some((c) => /^dsc (11|2e db e1 01|31|2f)/.test(c)), 'xDrive sent something besides the one write: ' + s.d.calls);
     // polling: DBE1 not more often than every 4 s
     const dbe1 = () => s.d.calls.filter((c) => c === 'dsc 22 db e1').length;
@@ -172,14 +237,15 @@ async function xdriveChecks() {
     assert.strictEqual(s.d.calls.filter((c) => c.startsWith('lmv ')).length, lmvReads);
     assert(s.d.calls.filter((c) => c.startsWith('lmv ')).every((c) => c === 'lmv 22 db 32' || c === 'lmv 22 f1 50'),
         'the LMV only gets reads (variant, torque)');
-    // engine off: no torque reads, none shown
+    // engine off: the transfer case is still read (its qualifier gives the mode), the Nm are not shown
     s.car.v.rpm = 0; s.car.v.speed = 0; clock += 5000;
     const before = s.d.calls.filter((c) => c.startsWith('lmv ')).length;
     await s.x.tick();
-    assert.strictEqual(s.d.calls.filter((c) => c.startsWith('lmv ')).length, before);
+    assert.strictEqual(s.d.calls.filter((c) => c.startsWith('lmv ')).length, before + 1);
     assert.strictEqual(s.x.view().torque, null);
+    assert.strictEqual(s.x.view().mode, 'RWD');                     // .. 00 E8 from st.front
 
-    // an LMV that refuses the torque read: asked once, then left alone
+    // an LMV that refuses the torque read (engine running): asked once, then left alone
     s = await mk('on', 'nolmv', { rpm: 800 });
     clock += 5000; await s.x.tick(); clock += 5000; await s.x.tick();
     assert.strictEqual(s.d.calls.filter((c) => c === 'lmv 22 db 32').length, 1);
@@ -194,7 +260,7 @@ async function xdriveChecks() {
         s = await mk('on', kind);
         await s.x.requestOff(); await s.x.requestOff();
         assert.deepStrictEqual(s.d.calls.filter((c) => /^dsc (2e|10)/.test(c)), ['dsc 2e db e1 00', 'dsc 10 03', 'dsc 2e db e1 00'], kind);
-        assert.strictEqual(s.x.view().mode, 'REQUESTED', kind);
+        assert.strictEqual(s.x.view().mode, 'RWD', kind);
         assert.strictEqual(s.x.noteType, 'go');
     }
     // the session is refused: no second write, the note says why
@@ -236,12 +302,14 @@ async function xdriveChecks() {
     s.car.v.condition = 10; s.d.engine = true;
     await s.x.requestOff(); await s.x.requestOff();
     assert.deepStrictEqual(s.d.calls.filter((c) => / 2e /.test(c)), ['vip 2e db 2f 00']);
-    assert.strictEqual(s.x.view().mode, 'REQUESTED');
+    assert.strictEqual(s.x.view().mode, 'REQUESTED');              // VIP path: the LMV is not read after the write
     assert.strictEqual(s.x.noteType, 'go');
-    // the mode is not read from DB44 (it read 0 in AWD on the G22): stays "requested", torque is shown
+    // the mode is not read from DB44 (it read 0 in AWD on the G22): the LMV qualifier (still .. 00 20
+    // in the stub: the VIP write changed nothing there) shows AWD, torque is shown
     s.car.v.speed = 10; clock += 5000;
     await s.x.tick();
-    assert.strictEqual(s.x.view().mode, 'REQUESTED');
+    assert.strictEqual(s.x.view().mode, 'AWD');
+    assert.strictEqual(s.x.view().modeFrom, 'lmv');
     assert.deepStrictEqual(s.x.view().torque, { actual: 39.5, requested: 38 });
     assert(!s.d.calls.some((c) => /^dsc (2e|10|11)/.test(c)), 'sent something to the IB: ' + s.d.calls);
     assert(s.d.calls.filter((c) => c.startsWith('vip ')).every((c) => /^vip (22 f1 50|22 db 44|2e db 2f 00)$/.test(c)));
@@ -259,7 +327,7 @@ async function xdriveChecks() {
     s = await mk('on', 'g22', { rpm: 0, condition: 7 });
     await s.x.requestOff(); await s.x.requestOff();
     assert.deepStrictEqual(writes(s.d), ['dsc 2e db e1 00']);
-    assert.strictEqual(s.x.view().mode, 'REQUESTED');
+    assert.strictEqual(s.x.view().mode, 'RWD');                    // the LMV qualifier, read right after
     s.car.v.condition = 10; s.d.engine = true; clock += 5000;
     await s.x.tick();
     assert.strictEqual(s.x.view().mode, 'RWD', 'READY with rpm 0 must read the mode');
@@ -271,6 +339,48 @@ async function xdriveChecks() {
     await s.x.tick();
     assert.strictEqual(s.x.view().mode, 'AWD');
 
+    // G01 X3 M40i (DSC_G30N 0F2850, measured): the write goes with the engine running, stationary in P
+    s = await mk('on', 'g01', { rpm: 700, condition: 10 });
+    s.d.engine = true;
+    assert.strictEqual(s.x.view().unit, 'DSC_G30N');
+    assert.strictEqual(s.x.view().tested, true);
+    assert.strictEqual(s.x.view().lmvName, 'LMV-G ATC13_2');
+    assert.strictEqual(s.x.view().onAvailable, true);
+    assert(!s.x.view().checks.some((c) => c.label === 'Engine off'), 'no "Engine off" check on 0F2850');
+    await s.x.requestOff(); await s.x.requestOff();
+    assert.deepStrictEqual(writes(s.d), ['dsc 2e db e1 00'], 'engine running must send on 0F2850');
+    assert.strictEqual(s.x.view().mode, 'RWD');
+    assert.strictEqual(s.x.view().modeFrom, 'lmv');
+    assert(/transfer case reports it/.test(s.x.note), s.x.note);
+    // ...but not moving, not in D, not with the ignition off
+    for (const live of [{ speed: 4 }, { stage: 'D' }, { condition: 5, rpm: 0 }]) {
+        const t = await mk('on', 'g01', Object.assign({ rpm: 700, condition: 10 }, live));
+        t.d.engine = true;
+        await t.x.requestOff(); await t.x.requestOff();
+        assert.deepStrictEqual(writes(t.d), [], 'g01 sent with ' + JSON.stringify(live));
+    }
+    // "xDrive on": its own double press (a confirm from the other button does not count), 2E DB E1 01,
+    // the LMV qualifier back to 20 -> AWD, the note names the stored DTC
+    await s.x.requestOn();
+    assert.strictEqual(s.x.view().confirmWhat, 'on');
+    assert.deepStrictEqual(writes(s.d), ['dsc 2e db e1 00']);
+    await s.x.requestOff();                                          // asks again for "off" instead
+    assert.strictEqual(s.x.view().confirmWhat, 'off');
+    assert.deepStrictEqual(writes(s.d), ['dsc 2e db e1 00']);
+    await s.x.requestOn(); await s.x.requestOn();
+    assert.deepStrictEqual(writes(s.d), ['dsc 2e db e1 00', 'dsc 2e db e1 01']);
+    assert.strictEqual(s.x.view().mode, 'AWD');
+    assert.strictEqual(s.x.requested, false);
+    assert(/480724/.test(s.x.note), s.x.note);
+    assert.strictEqual(s.events.filter((e) => e.event === 'command_accepted').pop().physicalEffect, 'verified_by_lmv');
+    // the engine off on the G01: DBE1 reads the value there too; the write is taken as before
+    s = await mk('on', 'g01', { rpm: 0, condition: 7 });
+    clock += 5000; await s.x.tick();
+    assert.strictEqual(s.x.view().mode, 'AWD');
+    await s.x.requestOff(); await s.x.requestOff();
+    assert.deepStrictEqual(writes(s.d), ['dsc 2e db e1 00']);
+    assert.strictEqual(s.x.view().mode, 'RWD');
+
     // issue #28: rpm still above 50 just after switching off, but the car says ignition on (7): sent
     for (const rpm of [80, 600, null]) {
         s = await mk('on', 'g22', { rpm, condition: 7 });
@@ -281,6 +391,25 @@ async function xdriveChecks() {
     s = await mk('on', 'g22', { rpm: 750, condition: 10 });
     await s.x.requestOff(); await s.x.requestOff();
     assert.deepStrictEqual(writes(s.d), [], 'sent with the engine running');
+
+    // the ICE G05 (VIP 0F2520): the job with the engine off and the ignition on, never while it runs
+    s = await mk('on', 'g05ice', { rpm: 800, condition: 10 });
+    s.d.engine = true;
+    assert.strictEqual(s.x.view().vipIndex, '0F2520');
+    await s.x.requestOff(); await s.x.requestOff();
+    assert.deepStrictEqual(s.d.calls.filter((c) => / 2e /.test(c)), [], 'sent with the engine running');
+    assert(/engine off/.test(s.x.note), s.x.note);
+    s.car.v.condition = 7; s.car.v.rpm = 0; s.d.engine = false;
+    await s.x.requestOff(); await s.x.requestOff();
+    assert.deepStrictEqual(s.d.calls.filter((c) => / 2e /.test(c)), ['vip 2e db 2f 00']);
+    assert.strictEqual(s.x.noteType, 'go');
+    assert(/start the engine without switching the ignition off/.test(s.x.note), s.x.note);
+    assert(!s.d.calls.some((c) => /^dsc (2e|10|11)/.test(c)), 'sent something to the IB: ' + s.d.calls);
+    // its NRC 33 says the engine runs (an rpm the car still reports while it stops), not an unlock
+    s = await mk('on', 'g05ice', { rpm: 0, condition: 7 });
+    s.d.engine = true;
+    await s.x.requestOff(); await s.x.requestOff();
+    assert(/engine is running/.test(s.x.note) && !/unlock/.test(s.x.note), s.x.note);
 
     // a VIP that wants security access (G05, issue #52): said plainly, nothing recorded as done
     s = await mk('on', 'g05vip33', { rpm: 0, condition: 10 });
@@ -308,6 +437,12 @@ async function xdriveChecks() {
     await s.x.requestOff(); await s.x.requestOff();
     assert.deepStrictEqual(writes(s.d), ['dsc 2e db e1 00']);
 
+    // NRC 33 with the engine off and every check green (G26 outside diagnostic mode, issue #63): the tab says
+    // to try diagnostic mode, nothing recorded as done
+    s = await mk('on', 'dsc33');
+    await s.x.requestOff(); await s.x.requestOff();
+    assert(/DSC refused: .*diagnostic mode: press Start 3 times without the brake/.test(s.x.note), s.x.note);
+    assert.strictEqual(s.x.requested, false);
     // the DSC refuses the write (e.g. parking brake off): shown, nothing recorded as done
     s = await mk('on', 'refuse');
     await s.x.requestOff(); await s.x.requestOff();
@@ -422,12 +557,20 @@ async function xdriveChecks() {
     s = await mk('on', 'g22', { condition: 7 });
     await s.x.requestOff(); await s.x.requestOff();
     const accepted = s.events.find((e) => e.event === 'command_accepted');
-    assert.strictEqual(accepted.physicalEffect, 'not_verified');
+    assert.strictEqual(accepted.physicalEffect, 'verified_by_lmv');   // the DB32 qualifier read right after
+    // an LMV that does not answer at the moment of the write: nothing is claimed
+    s = await mk('on', 'g22', { condition: 7 }, (physical) => async (target, sid, data, timeout, accept) =>
+        target === 0x19 && data[0] === 0xDB ? [0x7F, 0x22, 0x22] : physical(target, sid, data, timeout, accept));
+    await s.x.requestOff(); await s.x.requestOff();
+    assert.strictEqual(s.events.find((e) => e.event === 'command_accepted').physicalEffect, 'not_verified');
+    assert.strictEqual(s.x.view().mode, 'REQUESTED');
+    s = await mk('on', 'g22', { condition: 7 });
+    await s.x.requestOff(); await s.x.requestOff();
     s.car.v.rpm = 800; s.car.v.condition = 10; clock += 5000;
     await s.x.tick();
     const poll = s.events.find((e) => e.event === 'uds_result' && e.request === '22 DB 32');
     assert(poll && poll.attemptId === accepted.attemptId);
-    assert.strictEqual(poll.response, '62 DB 32 00 9E 00 02 00 98 00 20');
+    assert.strictEqual(poll.response, '62 DB 32 00 9E 00 02 00 98 00 E8');   // the stub's qualifier follows the write
     let count = s.events.length;
     clock += 61000;
     await s.x.tick();
@@ -554,7 +697,8 @@ async function xdriveChecks() {
     s.d.calls.length = 0; s.d.maxInflight = 0;
     await Promise.all([s.tune.refresh(), s.tune.refresh()]);
     assert.strictEqual(s.d.maxInflight, 1, 'two refreshes overlapped');
-    assert.strictEqual(s.d.calls.filter((c) => c.startsWith('2c')).length, 1);
+    assert.strictEqual(s.d.calls.filter((c) => c === '2c 03 f3 01').length, 1);
+    assert.strictEqual(s.d.calls.filter((c) => c.startsWith('2c 02')).length, 1);
     const pending = s.tune.refresh();
     assert.strictEqual(s.tune.view().busy, true);
     await s.tune.applyBurbles(false);
@@ -565,5 +709,6 @@ async function xdriveChecks() {
     assert.strictEqual(s.tune.verified, true);
 
     await xdriveChecks();
-    console.log('Live Adjustments tune checks passed (off / MHD echo / cooling rpm gate / BM3 read-back + ASD / wrong tune / untuned / late link / one request at a time / xDrive).');
+    pinChecks();
+    console.log('Live Adjustments tune checks passed (off / MHD echo / cooling rpm gate / BM3 read-back + ASD / wrong tune / untuned / late link / one request at a time / xDrive / Engine Map PIN).');
 })().catch((e) => { console.error(e); process.exit(1); });
