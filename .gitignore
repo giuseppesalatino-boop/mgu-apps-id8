@@ -1,0 +1,15 @@
+node_modules/
+# car packages contain BMW's SDK: never commit or publish them
+dist/
+*.mgu
+vendor/idrive7-apps/dist/
+vendor/idrive7-apps/preview/
+vendor/idrive7-apps/oap-sdk/
+# the apps as linked into the kit by each app's tools/setup.js
+vendor/idrive7-apps/apps/
+# BMW DME data is BMW's: never commit or publish it
+bmw-dme-data.json
+ecu-live-data/emu/dde-*.json
+# ECU Live Data: emulator bundle and Node 8 download (app/boostline-core.js IS committed: the Store builds without npm)
+ecu-live-data/build/
+ecu-live-data/.cache/
