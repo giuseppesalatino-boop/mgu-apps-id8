@@ -161,3 +161,10 @@ select { text-overflow: ellipsis; }
   .sigmode label, .row > label { min-height: 32px; display: inline-flex; align-items: center; gap: 6px; }
   button.small { min-height: 32px; padding: 0 10px; }
 }
+/* mgu-apps-id8: iDrive 8 (emu.js --id8): a 2880 x 960 screen; the HMI's status bar (76 px, its back arrow at the left) and its
+   climate bar (the bottom 120 px, always shown) around the app's area; no home cell or back column */
+body.id8 #stage { aspect-ratio: 2880 / 960; --u: calc(100cqw / 2880); }
+body.id8 #hmi-strip { height: calc(var(--u) * 76); background: #15171b; }
+body.id8 .hmi-homecell, body.id8 #hmi-col, body.id8 .hmi-home, body.id8 .hmi-back-app { display: none; }
+body.id8 #hmi::before { content: ""; position: absolute; left: calc(var(--u) * 52); top: calc(var(--u) * 20); width: calc(var(--u) * 22); height: calc(var(--u) * 22); border-left: calc(var(--u) * 4) solid #e4e4e4; border-bottom: calc(var(--u) * 4) solid #e4e4e4; transform: rotate(45deg); }
+body.id8 #hmi::after { content: "climate bar (iDrive 8)"; position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--u) * 120); background: #15171b; border-top: calc(var(--u) * 2) solid #ffffff30; color: #6b7079; font-size: calc(var(--u) * 30); display: flex; align-items: center; justify-content: center; }

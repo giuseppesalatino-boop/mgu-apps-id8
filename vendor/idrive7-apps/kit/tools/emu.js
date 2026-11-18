@@ -3,7 +3,7 @@
  * emu.js - live emulator: a built app running with the real runtime, drawn in the browser by the car's
  * GPU draw engine (kit/renderd/src/gfx.c as WebAssembly, kit/emu/web/gfx/).
  *
- *   node kit/tools/emu.js redline [--port 8077] [--bg screenshot.png] [--no-touch] [--diag responder.js]   ->  http://localhost:8077 (this computer only)
+ *   node kit/tools/emu.js redline [--port 8077] [--bg screenshot.png] [--no-touch] [--id8] [--diag responder.js]   ->  http://localhost:8077 (this computer only)
  *
  * Three parts in this process:
  *   app       python3 kit/tools/build.py <id>, then dist/<id> in a child node (hu-stub.js: a stubbed head
@@ -64,12 +64,15 @@ const DIAG = (() => { const d = opt('--diag', null); return d ? path.resolve(d) 
 // touch routing offered by the renderer (the Store's mgu-render: on; --no-touch or the page's switch: a renderer without
 // it, where the kit draws the slim bar over the HMI's own buttons and every tap is the HMI's)
 const Touch = { on: (() => { const i = args.indexOf('--no-touch'); if (i < 0) return true; args.splice(i, 1); return false; })() };
+// --id8 (mgu-apps-id8): an iDrive 8 head unit - a 2880 x 960 screen, the app area under the HMI's status bar and above its
+// climate bar (0,76 2880x764, as the Store's mgu-render reports it there), no controller gate
+const ID8 = (() => { const i = args.indexOf('--id8'); if (i < 0) return false; args.splice(i, 1); return true; })();
 const HOSTS = ['localhost:' + PORT, '127.0.0.1:' + PORT];
 const listApps = () => fs.readdirSync(path.join(ROOT, 'apps')).filter((d) => fs.existsSync(path.join(ROOT, 'apps', d, 'app.json'))).sort();
 /** { id: title } from each app's app.json (the HMI's tile labels) */
 const appTitles = () => listApps().reduce((o, id) => { try { o[id] = JSON.parse(fs.readFileSync(path.join(ROOT, 'apps', id, 'app.json'), 'utf8')).title || id; } catch (e) { o[id] = id; } return o; }, {});
 let appId = args[0];
-if (!appId || listApps().indexOf(appId) < 0) { console.error('usage: node kit/tools/emu.js <app> [--port 8077] [--bg file.png] [--no-touch] [--diag responder.js]\napps: ' + listApps().join(' ')); process.exit(2); }
+if (!appId || listApps().indexOf(appId) < 0) { console.error('usage: node kit/tools/emu.js <app> [--port 8077] [--bg file.png] [--no-touch] [--id8] [--diag responder.js]\napps: ' + listApps().join(' ')); process.exit(2); }
 // (a short path: Unix socket paths are limited to ~104 bytes; Windows has named pipes instead)
 const SOCK = process.platform === 'win32' ? '\\\\.\\pipe\\mgu-emu-' + process.pid : path.join(os.tmpdir(), 'mgu-emu-' + process.pid + '.sock');
 // (Windows installs Python as python, and python3 there is often the Store's placeholder)
@@ -171,6 +174,8 @@ const server = http.createServer((req, res) => {
         if (!ic && f !== BG && f.indexOf(WEB + path.sep) !== 0) { fail(403); return; }
         fs.readFile(f, (e, d) => {
             if (e) { fail(404); return; }
+            // --id8: the page draws iDrive 8's screen (emu-app.js, emu.css body.id8)
+            if (ID8 && f === path.join(WEB, 'index.html')) d = Buffer.from(String(d).replace('<body ', '<body class="id8" ').replace('<script type="module"', '<script>window.EMU_HMI = "ID8";</script><script type="module"'));
             // (cross-origin isolated: a finer performance.now() for the draw times; everything the page loads is from here)
             res.writeHead(200, { 'content-type': MIME[path.extname(f).toLowerCase()] || 'application/octet-stream', 'cache-control': 'no-store',
                 'cross-origin-opener-policy': 'same-origin', 'cross-origin-embedder-policy': 'require-corp' });
@@ -204,8 +209,9 @@ const X = { MODE: 0x4d520001, GRAB: 0x4d520002, PIXMAP: 0x4d520003, PIXELS: 0x4d
 // shortest payload per type (bytes), as kit/renderd/src/main.c checks them; shorter: "bad message"
 const MIN = { 2: 28, 3: 4, 4: 12, 5: 8, 6: 12, 8: 4, 9: 4, 10: 4, 11: 4, 12: 4, 13: 8, 14: 4 };
 MIN[X.MODE] = 4; MIN[X.GRAB] = 4; MIN[X.PIXMAP] = 20; MIN[X.PIXELS] = 4; MIN[X.PALETTE] = 4 + 768;
-const SCREEN = { w: 1920, h: 720 };
-const BACK_COL = { w: 84, h: 530, head: 76 };   // the HMI's home (in its strip) and back arrow column: must match display.js HMI.left / colEnd / status.h
+const SCREEN = ID8 ? { w: 2880, h: 960 } : { w: 1920, h: 720 };
+// iDrive 8: no column; the HMI's back arrow at the status bar's left
+const BACK_COL = ID8 ? { w: 160, h: 76, head: 0 } : { w: 84, h: 530, head: 76 };   // the HMI's home (in its strip) and back arrow column: must match display.js HMI.left / colEnd / status.h
 const T0 = Date.now();
 let R = null;                                   // the app's connection
 let pageFps = 60;
@@ -283,7 +289,8 @@ function handle(c, type, p, whole) {
         if (f.slice(1).indexOf('proto=mgu-render/1') >= 0) {
             c.dialect = 'native';
             // version 1, layer mode, caps: touch routing (if on) | controller gate | pixmaps; no embed; app area; pixmap side; 60 Hz
-            toApp(msg(X.READY, [1, 1, (c.touch ? 1 : 0) | 2 | 8, 0, 0, 0, 0, 108, 82, 1790, 638, 2048, 60000]));
+            toApp(msg(X.READY, ID8 ? [1, 1, (c.touch ? 1 : 0) | 8, 0, 0, 0, 0, 0, 76, 2880, 764, 2048, 60000]
+                : [1, 1, (c.touch ? 1 : 0) | 2 | 8, 0, 0, 0, 0, 108, 82, 1790, 638, 2048, 60000]));
         }
         toApp(msg(E.READY, [4, SCREEN.w, SCREEN.h, c.touch ? 1 : 0]));
         appLog('info', 'renderer: ' + c.app + ' connected' + (c.dialect ? ', mgu-render/1' : ''));

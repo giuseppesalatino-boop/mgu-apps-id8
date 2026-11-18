@@ -4,7 +4,7 @@
  * layout, mgu-render/1): the settings and cards such as the Service app's item details.
  *
  * A sheet is driven by the display (display.js openSheet):
- *   draw(r, t)  draw on r (a 1600 x 520 Recorder, the app's page coordinates); returns the touch
+ *   draw(r, t)  draw on r (a Recorder of the app's page: 1600 x 520, wider on a wide iDrive 8 page); returns the touch
  *               targets [{ x, y, w, h, act }] (act(): what a tap does; 'close' closes the sheet)
  *   move(d)     controller knob: d clicks (+ = clockwise)
  *   press()     controller press; back(): tilt left. Both return 'close' to close the sheet.
@@ -21,7 +21,7 @@ const { withAlpha } = require('./canvas');
 const G = require('./gauges');
 const { t: translate } = require('./i18n');
 
-const W = 1600, TOP = 46, BOTTOM = 512;
+const TOP = 46, BOTTOM = 512;
 const ROW_H = 66, GAP = 8;
 
 /* ---------------- drawing helpers ---------------- */
@@ -69,11 +69,11 @@ function list(r, t, key, rows, focus, y0, controller) {
     st.show = st.drag || Math.abs(st.y - st.show) < 0.5 ? st.y : st.show + (st.y - st.show) * 0.35;
     const sy = st.show;
     const rects = [];
-    r.clip(0, y0, W, H);
+    r.clip(0, y0, r.w, H);
     rows.forEach((row, i) => {
         const y = y0 + i * (ROW_H + GAP) - sy;
         if (y + ROW_H < y0 || y > bottom) return;
-        const x = 40, w = W - 80, on = i === focus && controller;
+        const x = 40, w = r.w - 80, on = i === focus && controller;
         r.roundRect(x, y, w, ROW_H, 14, on ? withAlpha(S, 0.22) : withAlpha('#ffffff', 0.05));
         if (on) r.strokeRoundRect(x, y, w, ROW_H, 14, 2, S);
         const cy = y + ROW_H / 2;
@@ -92,7 +92,7 @@ function list(r, t, key, rows, focus, y0, controller) {
     if (total > H) {
         // scroll position
         const bh = Math.max(40, H * H / total), by = y0 + (H - bh) * (sy / (total - H));
-        r.roundRect(W - 22, by, 6, bh, 3, withAlpha('#ffffff', 0.3));
+        r.roundRect(r.w - 22, by, 6, bh, 3, withAlpha('#ffffff', 0.3));
     }
     return rects;
 }
@@ -161,7 +161,7 @@ function listSheet(settings, title, opts) {
             else if (version) r.text('Version ' + version, 44, TOP + 38, 24, t.dim);
             const targets = [];
             // Back (a value list) / Done (the settings): top right
-            const bw = 150, bx = W - 40 - bw, by = TOP + 8;
+            const bw = 150, bx = r.w - 40 - bw, by = TOP + 8;
             // (the controller reaches it turning up from the first row: place -1)
             pill(r, t, bx, by, bw, 46, this.open || this.group ? 'Back' : 'Done', this.controller && (this.open ? this.sub : this.focus) === -1);
             targets.push({ x: bx - 10, y: by - 6, w: bw + 20, h: 58, act: () => this.back() });
@@ -239,7 +239,7 @@ function cardSheet(spec) {
             const targets = [];
             const actions = get('actions') || [];
             this.focus = Math.max(-1, Math.min(this.focus, actions.length - 1));
-            const x = 40, y = TOP + 6, w = W - 80, h = BOTTOM + (r.extra || 0) - y - 4;
+            const x = 40, y = TOP + 6, w = r.w - 80, h = BOTTOM + (r.extra || 0) - y - 4;
             r.roundRect(x, y, w, h, 18, withAlpha('#ffffff', 0.05));
             const accent = get('color') || t.sel || t.accent;
             r.roundRect(x, y, 8, h, 4, accent);

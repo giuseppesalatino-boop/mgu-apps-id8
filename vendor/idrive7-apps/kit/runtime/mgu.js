@@ -687,6 +687,8 @@ async function runInner(impl) {
         onLayout(fn) { display.onLayout(fn); },
         /** The surface to draw one frame on (record.js Recorder, reused): pass it to ui.image. */
         canvas(w, h) { return display.canvas(w, h); },
+        /** The page's width in logical px: 1600, wider on iDrive 8 for a screen with "wide": true (mgu-apps-id8). */
+        pageWidth() { return display.pageWidth(); },
         /**
          * Run fn while screen `stateName` is visible: once per screen refresh (up to 60 fps)
          * when the GPU renderer shows it, else about `fps` times a second.

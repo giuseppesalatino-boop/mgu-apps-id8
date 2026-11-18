@@ -1,0 +1,234 @@
+diff --git a/kit/emu/web/emu-app.js b/kit/emu/web/emu-app.js
+index 11acd62..81097cc 100644
+--- a/kit/emu/web/emu-app.js
++++ b/kit/emu/web/emu-app.js
+@@ -1,6 +1,8 @@
+ // emu-app.js - the emulator page: the app's renderer stream drawn by the car's draw engine (gfx/mgu-gfx.js,
+ // WebAssembly), mouse = touchscreen, keyboard / wheel = iDrive controller, the side panel. Protocol: kit/tools/emu.js.
+-const W = 1920, H = 720;
++// (mgu-apps-id8: window.EMU_HMI = "ID8", set by emu.js --id8: iDrive 8's 2880 x 960 screen)
++const ID8 = window.EMU_HMI === 'ID8';
++const W = ID8 ? 2880 : 1920, H = ID8 ? 960 : 720;
+ const $ = (s) => document.querySelector(s);
+ const el = (tag, attrs, ...kids) => {
+   const e = document.createElement(tag);
+diff --git a/kit/emu/web/emu.css b/kit/emu/web/emu.css
+index 669f56c..d55de1e 100644
+--- a/kit/emu/web/emu.css
++++ b/kit/emu/web/emu.css
+@@ -161,3 +161,10 @@ select { text-overflow: ellipsis; }
+   .sigmode label, .row > label { min-height: 32px; display: inline-flex; align-items: center; gap: 6px; }
+   button.small { min-height: 32px; padding: 0 10px; }
+ }
++/* mgu-apps-id8: iDrive 8 (emu.js --id8): a 2880 x 960 screen; the HMI's status bar (76 px, its back arrow at the left) and its
++   climate bar (the bottom 120 px, always shown) around the app's area; no home cell or back column */
++body.id8 #stage { aspect-ratio: 2880 / 960; --u: calc(100cqw / 2880); }
++body.id8 #hmi-strip { height: calc(var(--u) * 76); background: #15171b; }
++body.id8 .hmi-homecell, body.id8 #hmi-col, body.id8 .hmi-home, body.id8 .hmi-back-app { display: none; }
++body.id8 #hmi::before { content: ""; position: absolute; left: calc(var(--u) * 52); top: calc(var(--u) * 20); width: calc(var(--u) * 22); height: calc(var(--u) * 22); border-left: calc(var(--u) * 4) solid #e4e4e4; border-bottom: calc(var(--u) * 4) solid #e4e4e4; transform: rotate(45deg); }
++body.id8 #hmi::after { content: "climate bar (iDrive 8)"; position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--u) * 120); background: #15171b; border-top: calc(var(--u) * 2) solid #ffffff30; color: #6b7079; font-size: calc(var(--u) * 30); display: flex; align-items: center; justify-content: center; }
+diff --git a/kit/runtime/display.js b/kit/runtime/display.js
+index 3f68b12..5debaee 100644
+--- a/kit/runtime/display.js
++++ b/kit/runtime/display.js
+@@ -319,7 +319,8 @@ class Display {
+         if (!this.active() || !this.place.full) return;
+         const L = this.last, sc = this.place.scale;
+         if (!L) return;
+-        const r = this.sheetRec && this.sheetRec.textScale === sc ? this.sheetRec : (this.sheetRec = new Recorder(PAGE.w, PAGE.h, { textScale: sc }));
++        const pw = this.pageWidth();
++        const r = this.sheetRec && this.sheetRec.textScale === sc && this.sheetRec.w === pw ? this.sheetRec : (this.sheetRec = new Recorder(pw, PAGE.h, { textScale: sc }));
+         r.reset();
+         r.extra = this.place.extra || 0;
+         let targets = [];
+@@ -575,11 +576,18 @@ class Display {
+             // iDrive 7: the surface covers the whole screen, so the HMI's own bar can't show under the back
+             // arrow column; the page content goes right of that column. iDrive 8: the area under its status bar
+             const a = HMI.area ? this._area(HMI) : { x: 0, y: 0, w: scr.w, h: scr.h };
+-            const w = a.w - HMI.left, h = a.h, src = FULL.src;
++            const w = a.w - HMI.left, h = a.h;
+             const ah = h - this.headH() - this.barH();
+-            const s = Math.floor(Math.min(w / src.w, ah / src.h) * 1000) / 1000;
++            let src = FULL.src, s, pageW = PAGE.w;
++            if (HMI === HMI8 && this.screen && this.screen.wide) {
++                // a wide page (app.json "wide": true, mgu-apps-id8): as high as on iDrive 7 (520), as wide as iDrive 8's
++                // area then allows (about 2200): the app reads ctx.pageWidth() and lays its page out across it
++                s = Math.floor((ah / src.h) * 1000) / 1000;
++                pageW = Math.max(PAGE.w, 2 * Math.floor((w / s + 2 * src.x) / 2));
++                src = Object.assign({}, src, { w: pageW - 2 * src.x });
++            } else s = Math.floor(Math.min(w / src.w, ah / src.h) * 1000) / 1000;
+             pl = {
+-                x: a.x, y: a.y, w: a.w, h, full: true,
++                x: a.x, y: a.y, w: a.w, h, full: true, pageW,
+                 scale: s,
+                 ox: HMI.left + Math.round((w - src.w * s) / 2 - src.x * s),
+                 oy: Math.round(this.headH() + (ah - src.h * s) / 2 - src.y * s),
+@@ -661,6 +669,12 @@ class Display {
+         return !!(this.gpu && this.gpu.ready && this.place && !this.blocked && (!stateName || stateName === this.screen.name) && this._shown());
+     }
+ 
++    /**
++     * The width of the app's page in logical px: 1600, or more on iDrive 8 for a screen with "wide": true in
++     * app.json while the renderer shows it (the page then fills iDrive 8's wider area instead of being centred).
++     */
++    pageWidth() { return this.active() && this.place.full && this.place.pageW ? this.place.pageW : PAGE.w; }
++
+     /** The surface to draw a frame on (reused). */
+     canvas(w, h) {
+         const scale = this.active() ? this.place.scale : 1;
+diff --git a/kit/runtime/mgu.js b/kit/runtime/mgu.js
+index 73bad27..94c78b4 100644
+--- a/kit/runtime/mgu.js
++++ b/kit/runtime/mgu.js
+@@ -687,6 +687,8 @@ async function runInner(impl) {
+         onLayout(fn) { display.onLayout(fn); },
+         /** The surface to draw one frame on (record.js Recorder, reused): pass it to ui.image. */
+         canvas(w, h) { return display.canvas(w, h); },
++        /** The page's width in logical px: 1600, wider on iDrive 8 for a screen with "wide": true (mgu-apps-id8). */
++        pageWidth() { return display.pageWidth(); },
+         /**
+          * Run fn while screen `stateName` is visible: once per screen refresh (up to 60 fps)
+          * when the GPU renderer shows it, else about `fps` times a second.
+diff --git a/kit/runtime/sheet.js b/kit/runtime/sheet.js
+index 13edd4f..c4cd584 100644
+--- a/kit/runtime/sheet.js
++++ b/kit/runtime/sheet.js
+@@ -4,7 +4,7 @@
+  * layout, mgu-render/1): the settings and cards such as the Service app's item details.
+  *
+  * A sheet is driven by the display (display.js openSheet):
+- *   draw(r, t)  draw on r (a 1600 x 520 Recorder, the app's page coordinates); returns the touch
++ *   draw(r, t)  draw on r (a Recorder of the app's page: 1600 x 520, wider on a wide iDrive 8 page); returns the touch
+  *               targets [{ x, y, w, h, act }] (act(): what a tap does; 'close' closes the sheet)
+  *   move(d)     controller knob: d clicks (+ = clockwise)
+  *   press()     controller press; back(): tilt left. Both return 'close' to close the sheet.
+@@ -21,7 +21,7 @@ const { withAlpha } = require('./canvas');
+ const G = require('./gauges');
+ const { t: translate } = require('./i18n');
+ 
+-const W = 1600, TOP = 46, BOTTOM = 512;
++const TOP = 46, BOTTOM = 512;
+ const ROW_H = 66, GAP = 8;
+ 
+ /* ---------------- drawing helpers ---------------- */
+@@ -69,11 +69,11 @@ function list(r, t, key, rows, focus, y0, controller) {
+     st.show = st.drag || Math.abs(st.y - st.show) < 0.5 ? st.y : st.show + (st.y - st.show) * 0.35;
+     const sy = st.show;
+     const rects = [];
+-    r.clip(0, y0, W, H);
++    r.clip(0, y0, r.w, H);
+     rows.forEach((row, i) => {
+         const y = y0 + i * (ROW_H + GAP) - sy;
+         if (y + ROW_H < y0 || y > bottom) return;
+-        const x = 40, w = W - 80, on = i === focus && controller;
++        const x = 40, w = r.w - 80, on = i === focus && controller;
+         r.roundRect(x, y, w, ROW_H, 14, on ? withAlpha(S, 0.22) : withAlpha('#ffffff', 0.05));
+         if (on) r.strokeRoundRect(x, y, w, ROW_H, 14, 2, S);
+         const cy = y + ROW_H / 2;
+@@ -92,7 +92,7 @@ function list(r, t, key, rows, focus, y0, controller) {
+     if (total > H) {
+         // scroll position
+         const bh = Math.max(40, H * H / total), by = y0 + (H - bh) * (sy / (total - H));
+-        r.roundRect(W - 22, by, 6, bh, 3, withAlpha('#ffffff', 0.3));
++        r.roundRect(r.w - 22, by, 6, bh, 3, withAlpha('#ffffff', 0.3));
+     }
+     return rects;
+ }
+@@ -161,7 +161,7 @@ function listSheet(settings, title, opts) {
+             else if (version) r.text('Version ' + version, 44, TOP + 38, 24, t.dim);
+             const targets = [];
+             // Back (a value list) / Done (the settings): top right
+-            const bw = 150, bx = W - 40 - bw, by = TOP + 8;
++            const bw = 150, bx = r.w - 40 - bw, by = TOP + 8;
+             // (the controller reaches it turning up from the first row: place -1)
+             pill(r, t, bx, by, bw, 46, this.open || this.group ? 'Back' : 'Done', this.controller && (this.open ? this.sub : this.focus) === -1);
+             targets.push({ x: bx - 10, y: by - 6, w: bw + 20, h: 58, act: () => this.back() });
+@@ -239,7 +239,7 @@ function cardSheet(spec) {
+             const targets = [];
+             const actions = get('actions') || [];
+             this.focus = Math.max(-1, Math.min(this.focus, actions.length - 1));
+-            const x = 40, y = TOP + 6, w = W - 80, h = BOTTOM + (r.extra || 0) - y - 4;
++            const x = 40, y = TOP + 6, w = r.w - 80, h = BOTTOM + (r.extra || 0) - y - 4;
+             r.roundRect(x, y, w, h, 18, withAlpha('#ffffff', 0.05));
+             const accent = get('color') || t.sel || t.accent;
+             r.roundRect(x, y, 8, h, 4, accent);
+diff --git a/kit/tools/build.py b/kit/tools/build.py
+index 710fd3f..3bd33d8 100644
+--- a/kit/tools/build.py
++++ b/kit/tools/build.py
+@@ -626,6 +626,14 @@ def build(app_id, language='en', preview_only=False):
+     # impl.background runs then, without screens
+     if spec.get('autostart'):
+         pkg['mguAppStartType'] = 'autostart'
++    # app.json "mguHmi" (mgu-apps-id8): the head units the app is for, as the MGU Store reads them from package.json
++    # (mgu-store docs/PUBLISHING.md); "needs" / "requires": the renderer and versions it needs (mguNeeds, mguRequires)
++    if spec.get('mguHmi'):
++        pkg['mguHmi'] = list(spec['mguHmi'])
++    if spec.get('needs'):
++        pkg['mguNeeds'] = list(spec['needs'])
++    if spec.get('requires'):
++        pkg['mguRequires'] = dict(spec['requires'])
+     json.dump(pkg, open(os.path.join(src, 'package.json'), 'w', encoding='utf-8', newline='\n'), indent=2)
+     json.dump(manifest, open(os.path.join(src, 'manifest.json'), 'w', encoding='utf-8', newline='\n'), indent=2)
+     shutil.copy(os.path.join(KIT, 'platform', 'permissions.json'), os.path.join(src, 'permissions.json'))
+diff --git a/kit/tools/emu.js b/kit/tools/emu.js
+index fb2414d..19baef7 100644
+--- a/kit/tools/emu.js
++++ b/kit/tools/emu.js
+@@ -3,7 +3,7 @@
+  * emu.js - live emulator: a built app running with the real runtime, drawn in the browser by the car's
+  * GPU draw engine (kit/renderd/src/gfx.c as WebAssembly, kit/emu/web/gfx/).
+  *
+- *   node kit/tools/emu.js redline [--port 8077] [--bg screenshot.png] [--no-touch] [--diag responder.js]   ->  http://localhost:8077 (this computer only)
++ *   node kit/tools/emu.js redline [--port 8077] [--bg screenshot.png] [--no-touch] [--id8] [--diag responder.js]   ->  http://localhost:8077 (this computer only)
+  *
+  * Three parts in this process:
+  *   app       python3 kit/tools/build.py <id>, then dist/<id> in a child node (hu-stub.js: a stubbed head
+@@ -64,12 +64,15 @@ const DIAG = (() => { const d = opt('--diag', null); return d ? path.resolve(d)
+ // touch routing offered by the renderer (the Store's mgu-render: on; --no-touch or the page's switch: a renderer without
+ // it, where the kit draws the slim bar over the HMI's own buttons and every tap is the HMI's)
+ const Touch = { on: (() => { const i = args.indexOf('--no-touch'); if (i < 0) return true; args.splice(i, 1); return false; })() };
++// --id8 (mgu-apps-id8): an iDrive 8 head unit - a 2880 x 960 screen, the app area under the HMI's status bar and above its
++// climate bar (0,76 2880x764, as the Store's mgu-render reports it there), no controller gate
++const ID8 = (() => { const i = args.indexOf('--id8'); if (i < 0) return false; args.splice(i, 1); return true; })();
+ const HOSTS = ['localhost:' + PORT, '127.0.0.1:' + PORT];
+ const listApps = () => fs.readdirSync(path.join(ROOT, 'apps')).filter((d) => fs.existsSync(path.join(ROOT, 'apps', d, 'app.json'))).sort();
+ /** { id: title } from each app's app.json (the HMI's tile labels) */
+ const appTitles = () => listApps().reduce((o, id) => { try { o[id] = JSON.parse(fs.readFileSync(path.join(ROOT, 'apps', id, 'app.json'), 'utf8')).title || id; } catch (e) { o[id] = id; } return o; }, {});
+ let appId = args[0];
+-if (!appId || listApps().indexOf(appId) < 0) { console.error('usage: node kit/tools/emu.js <app> [--port 8077] [--bg file.png] [--no-touch] [--diag responder.js]\napps: ' + listApps().join(' ')); process.exit(2); }
++if (!appId || listApps().indexOf(appId) < 0) { console.error('usage: node kit/tools/emu.js <app> [--port 8077] [--bg file.png] [--no-touch] [--id8] [--diag responder.js]\napps: ' + listApps().join(' ')); process.exit(2); }
+ // (a short path: Unix socket paths are limited to ~104 bytes; Windows has named pipes instead)
+ const SOCK = process.platform === 'win32' ? '\\\\.\\pipe\\mgu-emu-' + process.pid : path.join(os.tmpdir(), 'mgu-emu-' + process.pid + '.sock');
+ // (Windows installs Python as python, and python3 there is often the Store's placeholder)
+@@ -171,6 +174,8 @@ const server = http.createServer((req, res) => {
+         if (!ic && f !== BG && f.indexOf(WEB + path.sep) !== 0) { fail(403); return; }
+         fs.readFile(f, (e, d) => {
+             if (e) { fail(404); return; }
++            // --id8: the page draws iDrive 8's screen (emu-app.js, emu.css body.id8)
++            if (ID8 && f === path.join(WEB, 'index.html')) d = Buffer.from(String(d).replace('<body ', '<body class="id8" ').replace('<script type="module"', '<script>window.EMU_HMI = "ID8";</script><script type="module"'));
+             // (cross-origin isolated: a finer performance.now() for the draw times; everything the page loads is from here)
+             res.writeHead(200, { 'content-type': MIME[path.extname(f).toLowerCase()] || 'application/octet-stream', 'cache-control': 'no-store',
+                 'cross-origin-opener-policy': 'same-origin', 'cross-origin-embedder-policy': 'require-corp' });
+@@ -204,8 +209,9 @@ const X = { MODE: 0x4d520001, GRAB: 0x4d520002, PIXMAP: 0x4d520003, PIXELS: 0x4d
+ // shortest payload per type (bytes), as kit/renderd/src/main.c checks them; shorter: "bad message"
+ const MIN = { 2: 28, 3: 4, 4: 12, 5: 8, 6: 12, 8: 4, 9: 4, 10: 4, 11: 4, 12: 4, 13: 8, 14: 4 };
+ MIN[X.MODE] = 4; MIN[X.GRAB] = 4; MIN[X.PIXMAP] = 20; MIN[X.PIXELS] = 4; MIN[X.PALETTE] = 4 + 768;
+-const SCREEN = { w: 1920, h: 720 };
+-const BACK_COL = { w: 84, h: 530, head: 76 };   // the HMI's home (in its strip) and back arrow column: must match display.js HMI.left / colEnd / status.h
++const SCREEN = ID8 ? { w: 2880, h: 960 } : { w: 1920, h: 720 };
++// iDrive 8: no column; the HMI's back arrow at the status bar's left
++const BACK_COL = ID8 ? { w: 160, h: 76, head: 0 } : { w: 84, h: 530, head: 76 };   // the HMI's home (in its strip) and back arrow column: must match display.js HMI.left / colEnd / status.h
+ const T0 = Date.now();
+ let R = null;                                   // the app's connection
+ let pageFps = 60;
+@@ -283,7 +289,8 @@ function handle(c, type, p, whole) {
+         if (f.slice(1).indexOf('proto=mgu-render/1') >= 0) {
+             c.dialect = 'native';
+             // version 1, layer mode, caps: touch routing (if on) | controller gate | pixmaps; no embed; app area; pixmap side; 60 Hz
+-            toApp(msg(X.READY, [1, 1, (c.touch ? 1 : 0) | 2 | 8, 0, 0, 0, 0, 108, 82, 1790, 638, 2048, 60000]));
++            toApp(msg(X.READY, ID8 ? [1, 1, (c.touch ? 1 : 0) | 8, 0, 0, 0, 0, 0, 76, 2880, 764, 2048, 60000]
++                : [1, 1, (c.touch ? 1 : 0) | 2 | 8, 0, 0, 0, 0, 108, 82, 1790, 638, 2048, 60000]));
+         }
+         toApp(msg(E.READY, [4, SCREEN.w, SCREEN.h, c.touch ? 1 : 0]));
+         appLog('info', 'renderer: ' + c.app + ' connected' + (c.dialect ? ', mgu-render/1' : ''));

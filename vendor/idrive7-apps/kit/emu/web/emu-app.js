@@ -1,6 +1,8 @@
 // emu-app.js - the emulator page: the app's renderer stream drawn by the car's draw engine (gfx/mgu-gfx.js,
 // WebAssembly), mouse = touchscreen, keyboard / wheel = iDrive controller, the side panel. Protocol: kit/tools/emu.js.
-const W = 1920, H = 720;
+// (mgu-apps-id8: window.EMU_HMI = "ID8", set by emu.js --id8: iDrive 8's 2880 x 960 screen)
+const ID8 = window.EMU_HMI === 'ID8';
+const W = ID8 ? 2880 : 1920, H = ID8 ? 960 : 720;
 const $ = (s) => document.querySelector(s);
 const el = (tag, attrs, ...kids) => {
   const e = document.createElement(tag);

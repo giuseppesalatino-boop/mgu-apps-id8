@@ -626,6 +626,14 @@ def build(app_id, language='en', preview_only=False):
     # impl.background runs then, without screens
     if spec.get('autostart'):
         pkg['mguAppStartType'] = 'autostart'
+    # app.json "mguHmi" (mgu-apps-id8): the head units the app is for, as the MGU Store reads them from package.json
+    # (mgu-store docs/PUBLISHING.md); "needs" / "requires": the renderer and versions it needs (mguNeeds, mguRequires)
+    if spec.get('mguHmi'):
+        pkg['mguHmi'] = list(spec['mguHmi'])
+    if spec.get('needs'):
+        pkg['mguNeeds'] = list(spec['needs'])
+    if spec.get('requires'):
+        pkg['mguRequires'] = dict(spec['requires'])
     json.dump(pkg, open(os.path.join(src, 'package.json'), 'w', encoding='utf-8', newline='\n'), indent=2)
     json.dump(manifest, open(os.path.join(src, 'manifest.json'), 'w', encoding='utf-8', newline='\n'), indent=2)
     shutil.copy(os.path.join(KIT, 'platform', 'permissions.json'), os.path.join(src, 'permissions.json'))

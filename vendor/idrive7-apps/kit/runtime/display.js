@@ -319,7 +319,8 @@ class Display {
         if (!this.active() || !this.place.full) return;
         const L = this.last, sc = this.place.scale;
         if (!L) return;
-        const r = this.sheetRec && this.sheetRec.textScale === sc ? this.sheetRec : (this.sheetRec = new Recorder(PAGE.w, PAGE.h, { textScale: sc }));
+        const pw = this.pageWidth();
+        const r = this.sheetRec && this.sheetRec.textScale === sc && this.sheetRec.w === pw ? this.sheetRec : (this.sheetRec = new Recorder(pw, PAGE.h, { textScale: sc }));
         r.reset();
         r.extra = this.place.extra || 0;
         let targets = [];
@@ -575,11 +576,18 @@ class Display {
             // iDrive 7: the surface covers the whole screen, so the HMI's own bar can't show under the back
             // arrow column; the page content goes right of that column. iDrive 8: the area under its status bar
             const a = HMI.area ? this._area(HMI) : { x: 0, y: 0, w: scr.w, h: scr.h };
-            const w = a.w - HMI.left, h = a.h, src = FULL.src;
+            const w = a.w - HMI.left, h = a.h;
             const ah = h - this.headH() - this.barH();
-            const s = Math.floor(Math.min(w / src.w, ah / src.h) * 1000) / 1000;
+            let src = FULL.src, s, pageW = PAGE.w;
+            if (HMI === HMI8 && this.screen && this.screen.wide) {
+                // a wide page (app.json "wide": true, mgu-apps-id8): as high as on iDrive 7 (520), as wide as iDrive 8's
+                // area then allows (about 2200): the app reads ctx.pageWidth() and lays its page out across it
+                s = Math.floor((ah / src.h) * 1000) / 1000;
+                pageW = Math.max(PAGE.w, 2 * Math.floor((w / s + 2 * src.x) / 2));
+                src = Object.assign({}, src, { w: pageW - 2 * src.x });
+            } else s = Math.floor(Math.min(w / src.w, ah / src.h) * 1000) / 1000;
             pl = {
-                x: a.x, y: a.y, w: a.w, h, full: true,
+                x: a.x, y: a.y, w: a.w, h, full: true, pageW,
                 scale: s,
                 ox: HMI.left + Math.round((w - src.w * s) / 2 - src.x * s),
                 oy: Math.round(this.headH() + (ah - src.h * s) / 2 - src.y * s),
@@ -660,6 +668,12 @@ class Display {
     active(stateName) {
         return !!(this.gpu && this.gpu.ready && this.place && !this.blocked && (!stateName || stateName === this.screen.name) && this._shown());
     }
+
+    /**
+     * The width of the app's page in logical px: 1600, or more on iDrive 8 for a screen with "wide": true in
+     * app.json while the renderer shows it (the page then fills iDrive 8's wider area instead of being centred).
+     */
+    pageWidth() { return this.active() && this.place.full && this.place.pageW ? this.place.pageW : PAGE.w; }
 
     /** The surface to draw a frame on (reused). */
     canvas(w, h) {
