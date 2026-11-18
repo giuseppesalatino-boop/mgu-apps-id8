@@ -28,15 +28,15 @@ const step = (s) => console.log('setup: ' + s);
 const git = (args, cwd) => execFileSync('git', args, { cwd: cwd || ROOT, stdio: ['ignore', 'pipe', 'pipe'] }).toString().trim();
 
 function patches() {
+    // the kit is committed with patches/idrive7-apps/*.patch applied, in order (vendor/idrive7-apps/VENDORED.md);
+    // the newest coming off in reverse shows they are all there (an older one alone may not: a later one changed
+    // its lines too)
     const dir = path.join(REPO, 'patches', 'idrive7-apps');
-    for (const p of fs.readdirSync(dir).filter((f) => f.endsWith('.patch')).sort()) {
-        const file = path.join(dir, p);
-        try { git(['apply', '--reverse', '--check', file], KIT); continue; } catch (e) { /* not applied yet */ }
-        try { git(['apply', '--check', file], KIT); } catch (e) {
-            throw new Error(p + ' does not apply to vendor/idrive7-apps:\n' + String(e.stderr || e.message));
-        }
-        git(['apply', file], KIT);
-        step('applied ' + p);
+    const list = fs.readdirSync(dir).filter((f) => f.endsWith('.patch')).sort();
+    const last = list.indexOf('id8-wide-page-emulator-manifest.patch') >= 0 ? 'id8-wide-page-emulator-manifest.patch' : list[list.length - 1];
+    if (!last) return;
+    try { git(['apply', '--directory=vendor/idrive7-apps', '--reverse', '--check', path.join(dir, last)], REPO); } catch (e) {
+        throw new Error('vendor/idrive7-apps is not the patched kit this repository commits (' + last + ' is not applied): ' + String(e.stderr || e.message));
     }
 }
 

@@ -4,7 +4,7 @@
  *
  *   1. patches/idrive7-apps/*.patch applied to the kit in vendor/idrive7-apps (the emulator on Windows,
  *      its diagnostics hook: the same patch as ECU Live Data's)
- *   2. app/ linked into the kit as apps/true_time (a junction on Windows), where its build and emulator
+ *   2. app/ linked into the kit as apps/true_time_id8 (a junction on Windows), where its build and emulator
  *      look for apps
  *   3. an SDK placeholder in vendor/idrive7-apps/oap-sdk when there is no SDK: build.py stages every app
  *      with BMW's SDK, which isn't in git; the emulator never loads it. Car builds refuse the placeholder
@@ -19,7 +19,7 @@ const { execFileSync } = require('child_process');
 const ROOT = path.resolve(__dirname, '..');
 const REPO = path.resolve(ROOT, '..');          // the collection: vendor/ and patches/ are shared by every app
 const KIT = path.join(REPO, 'vendor', 'idrive7-apps');
-const APP_ID = 'true_time';
+const APP_ID = 'true_time_id8';
 const APP_LINK = path.join(KIT, 'apps', APP_ID);
 const SDK = path.join(KIT, 'oap-sdk');
 const PLACEHOLDER_VERSION = '0.0.0-emulator-placeholder';
@@ -28,15 +28,15 @@ const step = (s) => console.log('setup: ' + s);
 const git = (args, cwd) => execFileSync('git', args, { cwd: cwd || ROOT, stdio: ['ignore', 'pipe', 'pipe'] }).toString().trim();
 
 function patches() {
+    // the kit is committed with patches/idrive7-apps/*.patch applied, in order (vendor/idrive7-apps/VENDORED.md);
+    // the newest coming off in reverse shows they are all there (an older one alone may not: a later one changed
+    // its lines too)
     const dir = path.join(REPO, 'patches', 'idrive7-apps');
-    for (const p of fs.readdirSync(dir).filter((f) => f.endsWith('.patch')).sort()) {
-        const file = path.join(dir, p);
-        try { git(['apply', '--reverse', '--check', file], KIT); continue; } catch (e) { /* not applied yet */ }
-        try { git(['apply', '--check', file], KIT); } catch (e) {
-            throw new Error(p + ' does not apply to vendor/idrive7-apps:\n' + String(e.stderr || e.message));
-        }
-        git(['apply', file], KIT);
-        step('applied ' + p);
+    const list = fs.readdirSync(dir).filter((f) => f.endsWith('.patch')).sort();
+    const last = list.indexOf('id8-wide-page-emulator-manifest.patch') >= 0 ? 'id8-wide-page-emulator-manifest.patch' : list[list.length - 1];
+    if (!last) return;
+    try { git(['apply', '--directory=vendor/idrive7-apps', '--reverse', '--check', path.join(dir, last)], REPO); } catch (e) {
+        throw new Error('vendor/idrive7-apps is not the patched kit this repository commits (' + last + ' is not applied): ' + String(e.stderr || e.message));
     }
 }
 

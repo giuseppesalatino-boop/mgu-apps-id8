@@ -83,6 +83,7 @@ function headUnit(stage, o) {
     const ctx = hu.ctx = {
         ui, settings, spec, dataDir: out, log, display,
         canvas: (w, h) => display.canvas(w, h),
+        pageWidth: () => display.pageWidth(),
         onTab(fn) { display.onTab = fn; },
         // as kit/mgu.js: the kit's own screen (tabs, page buttons, sheets, scrolling) where the renderer has the app
         onTap(fn) { display.onTap = fn; },
