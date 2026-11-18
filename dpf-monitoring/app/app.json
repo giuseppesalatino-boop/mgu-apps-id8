@@ -2,7 +2,7 @@
   "id": "dpf_id8",
   "title": "DPF Monitoring",
   "description": "Diesel particulate filter for iDrive 8: soot and ash load, regenerations (live, interrupted, history), differential pressure and exhaust temperatures from the diesel engine unit (DDE), read-only",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "vendor": "custom",
   "loggingId": "OAB2",
   "iconGlyph": "DPF",

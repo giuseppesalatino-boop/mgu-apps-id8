@@ -2,7 +2,7 @@
   "id": "true_time_id8",
   "title": "True Time",
   "description": "Acceleration and braking times corrected for the road's slope (the DSC's acceleration sensor), for iDrive 8",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "vendor": "giuseppesalatino-boop",
   "loggingId": "OAB7",
   "iconGlyph": "flag",

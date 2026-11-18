@@ -1,6 +1,6 @@
 {
   "name": "true-time-id8",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "True Time: acceleration and braking times on the BMW iDrive 8 head unit, measured and corrected for the road's slope",
   "private": true,
   "license": "MIT",

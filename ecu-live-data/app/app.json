@@ -2,7 +2,7 @@
   "id": "boostline_id8",
   "title": "ECU Live Data",
   "description": "Live engine data from the DDE (diesel) or DME (petrol), CSV logs, road dyno and drag timer, read-only, for iDrive 8",
-  "version": "0.1.1",
+  "version": "1.0.0",
   "vendor": "boostline",
   "loggingId": "OAB1",
   "iconGlyph": "ECU",
