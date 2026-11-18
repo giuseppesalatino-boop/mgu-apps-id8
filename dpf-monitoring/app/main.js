@@ -1,12 +1,12 @@
 'use strict';
 /**
- * DPF Monitoring - the DPF Monitor (apps/dpf) in the look of BMW's own iDrive 7 screens.
+ * DPF Monitoring for iDrive 8 - the iDrive 7 app (giuseppesalatino-boop/mgu-apps) on iDrive 8's screen.
  *
- * The HMI draws the title and the button bar itself (setting "Screen layout" = iDrive, the default);
- * the app draws only the page between them, in BMW's style: black, thin lines, light type, the
- * slanted silver bars with the accent needle, and a drawing of the filter on the right.
+ * The kit's header (the pages as tabs) and slim bar are over the page; the page is ctx.pageWidth() wide
+ * (about 2200 x 520 on iDrive 8, 1600 x 520 elsewhere) and each page lays itself out across it. Black,
+ * thin lines, light type, the slanted silver bars with the accent needle, the filter drawn on the right.
  *
- * Pages (the HMI's buttons Overview / Live data / History; tabs in the full-screen layout):
+ * Pages (tabs in the kit's header; the bar buttons Overview / Live data / History do the same):
  *   Overview    soot load and exhaust temperature as bars, the filter drawing with soot, ash, heat and
  *               the pressure difference, the status (filter OK / regeneration due / running) under it
  *   Live data   soot, pressure difference and both exhaust temperatures with their last 5 minutes,
@@ -26,7 +26,9 @@ const { DemoDpf } = require('./demo');
 const ID7 = require('./id7');
 const { drawDpf } = require('./illustration');
 
-const W = 1600, H = 520;
+const H = 520;
+// the page's width: 1600, wider on iDrive 8 (ctx.pageWidth(), read for each frame); X: what it has over 1600
+let W = 1600, X = 0;
 const PAGES = ['Overview', 'Live data', 'History'];
 const BUTTONS = ['BTN_OVERVIEW', 'BTN_LIVE', 'BTN_HISTORY'];
 const FAST = ['soot', 'regenReq', 'dp', 'tDpf', 'tOxi'];                 // every round
@@ -243,18 +245,19 @@ mgu.run({
         function drawOverview(cv, P, d) {
             const thr = threshold(), max = Math.max(10, Math.ceil(thr * 1.25 / 5) * 5);
             // soot load: the item in focus, framed as BMW's first gauge
-            ID7.card(cv, P, 40, 46, 750, 196);
+            // (a wider page: the bars on the left take the extra width, the filter drawing moves right)
+            ID7.card(cv, P, 40, 46, 750 + X, 196);
             cv.text('Soot load', 64, 84, 24, P.text2);
-            cv.text(G.isNum(d.soot) ? 'Regeneration at approx. ' + G.fmt(thr, 0) + ' g (' + thresholdSource() + ')' : why('soot'), 766, 84, 20, P.dim, { align: 'right' });
+            cv.text(G.isNum(d.soot) ? 'Regeneration at approx. ' + G.fmt(thr, 0) + ' g (' + thresholdSource() + ')' : why('soot'), 766 + X, 84, 20, P.dim, { align: 'right' });
             ID7.value(cv, P, 64, 136, d.soot, 'g', 46, { decimals: 1 });
-            ID7.slantBar(cv, P, 64, 154, 702, 26, { value: d.soot, min: 0, max, mark: thr, zoneFrom: thr });
+            ID7.slantBar(cv, P, 64, 154, 702 + X, 26, { value: d.soot, min: 0, max, mark: thr, zoneFrom: thr });
 
             // exhaust temperature before the filter
             const tMax = F() ? 1500 : 800;
             cv.text('Exhaust temperature before DPF', 64, 290, 24, P.text2);
-            cv.text('Regeneration from approx. ' + Math.round(T(550)) + ' ' + tU(), 766, 290, 20, P.dim, { align: 'right' });
+            cv.text('Regeneration from approx. ' + Math.round(T(550)) + ' ' + tU(), 766 + X, 290, 20, P.dim, { align: 'right' });
             ID7.value(cv, P, 64, 342, T(d.tDpf), tU(), 46);
-            ID7.slantBar(cv, P, 64, 360, 702, 26, { value: T(d.tDpf), min: 0, max: tMax, zoneFrom: T(550), ticks: 4 });
+            ID7.slantBar(cv, P, 64, 360, 702 + X, 26, { value: T(d.tDpf), min: 0, max: tMax, zoneFrom: T(550), ticks: 4 });
 
             // a line under it, like BMW's "Recommended rev limit" (km and fuel since, the usual interval)
             let x = 64;
@@ -264,8 +267,8 @@ mgu.run({
             seg('Average', num(d.avgInterval, 0, 'km'));
 
             // the filter drawing, its status under it
-            drawDpf(cv, P, 830, 40, { soot: d.soot, sootMax: thr, ash: d.ash, tDpf: d.tDpf, dp: d.dp, regen: running(), T, tUnit: tU() });
-            cv.fillRect(830, 404, 730, 1, '#3a3a3a');
+            drawDpf(cv, P, 830 + X, 40, { soot: d.soot, sootMax: thr, ash: d.ash, tDpf: d.tDpf, dp: d.dp, regen: running(), T, tUnit: tU() });
+            cv.fillRect(830 + X, 404, 730, 1, '#3a3a3a');
             let title, sub, dot = null;
             if (running()) {
                 title = 'Regeneration running'; dot = P.heat;
@@ -277,10 +280,10 @@ mgu.run({
                 title = 'Particulate filter OK';
                 sub = left === null ? 'Soot ' + num(d.soot, 1, 'g') + ' of approx. ' + G.fmt(thr, 0) + ' g' : 'Next regeneration in approximately ' + thousands(Math.round(left / 10) * 10) + ' km';
             }
-            let tx = 846;
-            if (dot) { cv.circle(856, 440, 8 + (running() ? 2 * Math.sin(Date.now() / 300) : 0), withAlpha(dot, 0.3)); cv.circle(856, 440, 6, dot); tx = 876; }
+            let tx = 846 + X;
+            if (dot) { cv.circle(856 + X, 440, 8 + (running() ? 2 * Math.sin(Date.now() / 300) : 0), withAlpha(dot, 0.3)); cv.circle(856 + X, 440, 6, dot); tx = 876 + X; }
             cv.text(title, tx, 450, 28, P.text);
-            cv.text(sub, 846, 488, 21, P.dim);
+            cv.text(sub, 846 + X, 488, 21, P.dim);
         }
 
         function drawLive(cv, P, d) {
@@ -291,11 +294,13 @@ mgu.run({
                 { label: 'Before DPF', value: T(d.tDpf), unit: tU(), history: recent(2, T), k: 'tDpf' },
                 { label: 'Before oxidation catalyst', value: T(d.tOxi), unit: tU(), history: recent(3, T), k: 'tOxi' },
             ];
+            // (a wider page: each of the four histories takes 35% of the extra width, the list the rest)
+            const k = Math.floor(X * 0.35);
             items.forEach((g, i) => {
-                const x = 40 + (i % 2) * 480, y = 52 + Math.floor(i / 2) * 230;
-                ID7.stat(cv, P, x, y, 420, Object.assign({ caption: 'History  -  last 5 min', sub: G.isNum(g.value) ? null : why(g.k) }, g));
+                const x = 40 + (i % 2) * (480 + k), y = 52 + Math.floor(i / 2) * 230;
+                ID7.stat(cv, P, x, y, 420 + k, Object.assign({ caption: 'History  -  last 5 min', sub: G.isNum(g.value) ? null : why(g.k) }, g));
             });
-            cv.fillRect(1004, 52, 1, 440, P.line);
+            cv.fillRect(1004 + 2 * k, 52, 1, 440, P.line);
             const rows = [
                 ['Oil ash mass', num(d.ash, 1, 'g')],
                 ['Soot mass (calculated)', num(d.sootSim, 1, 'g')],
@@ -308,7 +313,7 @@ mgu.run({
                 ['Interruption status', num(d.interrupted, 0)],
                 ['Lock status', num(d.lock, 0)],
             ];
-            rows.forEach((r, i) => ID7.row(cv, P, 1030, 46 + i * 46, 530, 46, r[0], r[1], { size: 21, valueSize: 23 }));
+            rows.forEach((r, i) => ID7.row(cv, P, 1030 + 2 * k, 46 + i * 46, 530 + X - 2 * k, 46, r[0], r[1], { size: 21, valueSize: 23 }));
         }
 
         /** Live data with "show raw replies": every identifier, its reply bytes and the value. */
@@ -316,20 +321,21 @@ mgu.run({
             cv.text('Engine unit 0x' + Number(cfg.ecu).toString(16).toUpperCase() + '  -  UDS 22', 56, 72, 22, P.dim);
             const s = link.stats;
             cv.text((link.ready ? link.available ? 'Link up' : 'Link down' : link.error || 'Connecting') + '   Requests ' + s.sent + '   Replies ' + s.replies + '   No answer ' + s.missed,
-                1544, 72, 20, P.dim, { align: 'right' });
+                W - 56, 72, 20, P.dim, { align: 'right' });
             ALL.forEach((k, i) => {
                 const c = (cfg[k] || [])[rd.pick[k] || 0], r = c && rd.raws[rd.key(c)], y = 84 + i * 30;
                 const v = d[k];
                 cv.text(NAMES[k], 56, y + 22, 20, P.text2);
                 cv.text(c ? DidReader.label(c) : '--', 560, y + 22, 20, P.dim);
                 cv.text(d.demo ? 'demo' : r ? (r.bytes ? r.bytes.split(' ').slice(0, 9).join(' ') : r.why) : 'not asked yet', 660, y + 22, 20, P.dim);
-                cv.text(G.isNum(v) ? G.fmt(v, Math.abs(v) < 10 && v % 1 ? 3 : 1) + ' ' + (UNITS[k] || '') : '--', 1544, y + 22, 21, G.isNum(v) ? P.text : P.dim, { align: 'right' });
-                cv.fillRect(40, y + 29, 1520, 1, P.line);
+                cv.text(G.isNum(v) ? G.fmt(v, Math.abs(v) < 10 && v % 1 ? 3 : 1) + ' ' + (UNITS[k] || '') : '--', W - 56, y + 22, 21, G.isNum(v) ? P.text : P.dim, { align: 'right' });
+                cv.fillRect(40, y + 29, W - 80, 1, P.line);
             });
         }
 
         function drawHistory(cv, P, d) {
-            // what this app has watched, as a two-line list
+            // what this app has watched, as a two-line list (a wider page: half the extra width each side)
+            const h2 = Math.floor(X / 2);
             cv.text('Regenerations', 56, 72, 22, P.dim);
             const list = (store.log || []).slice();
             if (regen && !regen.demo) list.unshift({ date: regen.date, sootStart: regen.sootStart, durS: ((regen.endedAt || mono()) - regen.t0) / 1000, peakT: regen.peakT, result: regen.endedAt ? 'checking' : 'running' });
@@ -342,19 +348,19 @@ mgu.run({
             list.slice(0, 6).forEach((e, i) => {
                 const sub = e.result === 'not watched' ? 'Seen afterwards (distance since regeneration went back to 0)'
                     : 'Soot ' + num(e.sootStart, 1, 'g') + '   Duration ' + dur(e.durS) + ' min   Peak ' + (G.isNum(e.peakT) ? Math.round(T(e.peakT)) + ' ' + tU() : '--');
-                ID7.row(cv, P, 40, 84 + i * 70, 880, 70, e.date ? date(e.date) : '--', WORD[e.result] || e.result, { sub, valueColor: COL[e.result] || P.dim, valueSize: 22, focus: i === 0 && e.result === 'running' });
+                ID7.row(cv, P, 40, 84 + i * 70, 880 + h2, 70, e.date ? date(e.date) : '--', WORD[e.result] || e.result, { sub, valueColor: COL[e.result] || P.dim, valueSize: 22, focus: i === 0 && e.result === 'running' });
             });
 
             // the engine unit's memory: the last intervals as bars, the current one growing
-            cv.fillRect(950, 52, 1, 440, P.line);
-            cv.text('Engine unit memory', 980, 72, 22, P.dim);
+            cv.fillRect(950 + h2, 52, 1, 440, P.line);
+            cv.text('Engine unit memory', 980 + h2, 72, 22, P.dim);
             const h = d.history || [];
             const bars = [];
             for (let i = Math.min(h.length - 1, 4) - 1; i >= 0; i--) bars.push({ km: h[i] - h[i + 1], at: h[i] });
             if (G.isNum(d.distSince)) bars.push({ km: d.distSince, now: true });
             const avg = d.avgInterval;
             const top = Math.max(100, ...bars.map((b) => b.km), G.isNum(avg) ? avg : 0) * 1.15;
-            const bx = 990, bw = 560, by = 110, bh = 250, slot = bw / Math.max(1, bars.length), base = by + bh;
+            const bx = 990 + h2, bw = 560 + X - h2, by = 110, bh = 250, slot = bw / Math.max(1, bars.length), base = by + bh;
             cv.fillRect(bx, base, bw, 2, P.scale);
             if (!bars.length) cv.text(d.demo ? '' : why('distSince') || 'Reading...', bx, by + 120, 22, P.dim);
             bars.forEach((b, i) => {
@@ -371,14 +377,15 @@ mgu.run({
                 for (let k = bx; k < bx + bw; k += 18) cv.fillRect(k, ay, 10, 2, P.accent);
                 cv.text('Average ' + thousands(avg) + ' km', bx + bw, ay - 10, 18, P.accent, { align: 'right' });
             }
-            ID7.row(cv, P, 970, 410, 590, 44, 'Interval in km, odometer at its end', null, { size: 18 });
-            ID7.row(cv, P, 970, 454, 590, 44, 'Oil ash in the filter', num(d.ash, 1, 'g'), { size: 21 });
+            ID7.row(cv, P, 970 + h2, 410, 590 + X - h2, 44, 'Interval in km, odometer at its end', null, { size: 18 });
+            ID7.row(cv, P, 970 + h2, 454, 590 + X - h2, 44, 'Oil ash in the filter', num(d.ash, 1, 'g'), { size: 21 });
         }
 
         /* ---------- screen ---------- */
         let page = 0;
         async function render() {
             const P = ID7.palette(settings.get('accent')), d = snap;
+            W = ctx.pageWidth ? ctx.pageWidth() : 1600; X = W - 1600;
             const cv = ctx.canvas(W, H).clear(P.bg);
             [drawOverview, drawLive, drawHistory][page](cv, P, d);
             if (cv.chrome) {
@@ -387,7 +394,7 @@ mgu.run({
             } else {
                 // iDrive layout: the HMI's title is over the page; the badges go top right of the page
                 // (a running regeneration: Overview says so in its status, the other pages here)
-                let xr = 1560;
+                let xr = W - 40;
                 if (running() && page !== 0) {
                     const s = 'Regeneration running  ' + dur((mono() - regen.t0) / 1000);
                     cv.text(s, xr, 30, 20, P.heat, { align: 'right' });

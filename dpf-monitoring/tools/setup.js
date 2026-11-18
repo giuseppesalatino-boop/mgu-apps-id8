@@ -4,7 +4,7 @@
  *
  *   1. patches/idrive7-apps/*.patch applied to the kit in vendor/idrive7-apps (the emulator on Windows,
  *      its diagnostics hook: the same patch as ECU Live Data's)
- *   2. app/ linked into the kit as apps/dpf_id7 (a junction on Windows), where its build and emulator
+ *   2. app/ linked into the kit as apps/dpf_id8 (a junction on Windows), where its build and emulator
  *      look for apps
  *   3. an SDK placeholder in vendor/idrive7-apps/oap-sdk when there is no SDK: build.py stages every app
  *      with BMW's SDK, which isn't in git; the emulator never loads it. Car builds refuse the placeholder
@@ -19,7 +19,7 @@ const { execFileSync } = require('child_process');
 const ROOT = path.resolve(__dirname, '..');
 const REPO = path.resolve(ROOT, '..');          // the collection: vendor/ and patches/ are shared by every app
 const KIT = path.join(REPO, 'vendor', 'idrive7-apps');
-const APP_ID = 'dpf_id7';
+const APP_ID = 'dpf_id8';
 const APP_LINK = path.join(KIT, 'apps', APP_ID);
 const SDK = path.join(KIT, 'oap-sdk');
 const PLACEHOLDER_VERSION = '0.0.0-emulator-placeholder';

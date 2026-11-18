@@ -1,11 +1,13 @@
 {
-  "id": "dpf_id7",
+  "id": "dpf_id8",
   "title": "DPF Monitoring",
-  "description": "Diesel particulate filter in the iDrive 7 look: soot and ash load, regenerations (live, interrupted, history), differential pressure and exhaust temperatures from the diesel engine unit (DDE), read-only",
-  "version": "0.1.1",
+  "description": "Diesel particulate filter for iDrive 8: soot and ash load, regenerations (live, interrupted, history), differential pressure and exhaust temperatures from the diesel engine unit (DDE), read-only",
+  "version": "0.1.0",
   "vendor": "custom",
   "loggingId": "OAB2",
   "iconGlyph": "DPF",
+  "mguHmi": ["ID8"],
+  "needs": ["renderer"],
   "signals": {
     "com.harman.infotainment.systemfunctions.tasu.tasu.InternalTasu": {
       "_instances": "SystemFunctionsInternalTasuInst1",
@@ -18,6 +20,7 @@
       "name": "MAIN",
       "kind": "canvas",
       "title": "DPF Monitoring",
+      "wide": true,
       "buttons": [
         ["BTN_OVERVIEW", "Overview"],
         ["BTN_LIVE", "Live data"],
@@ -37,8 +40,6 @@
      "options": [["c", "Celsius"], ["f", "Fahrenheit"]]},
     {"key": "accent", "label": "Highlight colour", "type": "choice", "default": "red",
      "options": [["red", "Red"], ["blue", "Blue"], ["orange", "Orange"]]},
-    {"key": "layout", "label": "Screen layout", "type": "choice", "default": "standard",
-     "options": [["standard", "iDrive (title and buttons by the HMI)"], ["full", "Full screen"]]},
     {"key": "renderer", "label": "Renderer", "type": "choice", "default": "auto",
      "options": [["auto", "GPU 60 fps (default)"], ["software", "Software"]]},
     {"key": "demo", "label": "Demo data", "type": "choice", "default": "auto",
