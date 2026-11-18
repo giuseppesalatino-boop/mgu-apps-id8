@@ -496,7 +496,7 @@ mgu.run({
                     applyStream();
                 },
             });
-            if (!ctx.sheet(sh)) say('The picker needs Screen layout: Full screen and Renderer: GPU (Settings)', 10000);
+            if (!ctx.sheet(sh)) say('The picker needs the GPU renderer (Settings: Renderer)', 10000);
         }
         /** Setup page on Dyno: pin the run shown as the baseline drawn behind the others, or clear it. */
         function dynoSheet() {
@@ -514,7 +514,7 @@ mgu.run({
                     say(dyno.baselineId ? 'Baseline pinned' : 'Baseline cleared', 3000);
                 },
             });
-            if (!ctx.sheet(sh)) say('Setup needs Screen layout: Full screen and Renderer: GPU (Settings)', 10000);
+            if (!ctx.sheet(sh)) say('Setup needs the GPU renderer (Settings: Renderer)', 10000);
         }
         /** Setup page: the tiles of a live page, the run on Drag, the streamed channels on Channels. */
         function setupPage() {
@@ -527,7 +527,7 @@ mgu.run({
                     title: 'Setup page', head: 'Setup page: Drag - the run to time', options: spec.options, current: settings.get('dragMode'),
                     done: (m) => { settings.set('dragMode', m); say(modeName(m) + ': press Arm run', 4000); },
                 });
-                if (!ctx.sheet(sh)) say('Setup needs Screen layout: Full screen and Renderer: GPU (Settings)', 10000);
+                if (!ctx.sheet(sh)) say('Setup needs the GPU renderer (Settings: Renderer)', 10000);
                 return;
             }
             if (k === 'dyno') { dynoSheet(); return; }
@@ -556,7 +556,7 @@ mgu.run({
                     applyStream();
                 },
             });
-            if (!ctx.sheet(sh)) say('Setup needs Screen layout: Full screen and Renderer: GPU (Settings)', 10000);
+            if (!ctx.sheet(sh)) say('Setup needs the GPU renderer (Settings: Renderer)', 10000);
         }
         ctx.onScroll((dy) => {
             if (kind() !== 'channels') return false;
@@ -592,7 +592,8 @@ mgu.run({
 
         function render() {
             const t = ctx.theme();
-            const cv = ctx.canvas(1600, 520).clear(t.bg);
+            // the page: 1600 wide, wider on iDrive 8 (ctx.pageWidth()); every page lays out on cv.w
+            const cv = ctx.canvas(ctx.pageWidth ? ctx.pageWidth() : 1600, 520).clear(t.bg);
             syncLabel();
             G.frame(cv, t, pages().map((p) => p.name), page, badges());
             const k = kind();
@@ -1062,7 +1063,7 @@ mgu.run({
                 },
                 size: files.size,
             });
-            if (!ctx.sheet(sh)) say('Files needs Screen layout: Full screen and Renderer: GPU (Settings)', 10000);
+            if (!ctx.sheet(sh)) say('Files needs the GPU renderer (Settings: Renderer)', 10000);
         }
         /** After a delete: the runs on Dyno / Drag, the capture shown here. */
         function afterDelete(key, file) {

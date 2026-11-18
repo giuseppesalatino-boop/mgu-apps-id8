@@ -2,7 +2,7 @@
 /**
  * The live emulator with a DME behind the head unit (no car, no BMW SDK):
  *
- *   node tools/emu.js [--port 8077] [--no-touch] [--obd-only]   ->  http://localhost:8077
+ *   node tools/emu.js [--port 8077] [--no-touch] [--obd-only] [--id7]   ->  http://localhost:8077 (an iDrive 8 screen; --id7: iDrive 7's)
  *
  * Runs the kit's emulator (vendor/idrive7-apps kit/tools/emu.js) on the app, with emu/fakeDme.ts
  * answering its diagnostic requests (--diag), and tools/bundle.js --watch beside it: a save in
@@ -30,7 +30,8 @@ const di = args.indexOf('--diesel');
 const diesel = di >= 0;
 // the file after --diesel, unless it's another option
 const dieselFrom = diesel && args[di + 1] && !/^--/.test(args[di + 1]) ? args[di + 1] : null;
-const pass = args.filter((a, i) => a !== '--obd-only' && a !== '--diesel' && !(dieselFrom && i === di + 1));
+// an iDrive 8 screen unless --id7 asks for iDrive 7's
+const pass = (args.indexOf('--id7') < 0 ? ['--id8'] : []).concat(args.filter((a, i) => a !== '--obd-only' && a !== '--diesel' && a !== '--id7' && !(dieselFrom && i === di + 1)));
 const DDE_SGBD = 'd83bx7c0';
 
 /** The DDE (d83bx7c0) out of the user's own BMW DME data, as a pack with that one entry. */
@@ -54,7 +55,7 @@ function ddePack() {
 setup();
 
 // the emulator keeps each app's settings and files in preview/emu/<id>/ (its ctx.dataDir)
-const dataDir = path.join(KIT, 'preview', 'emu', 'boostline');
+const dataDir = path.join(KIT, 'preview', 'emu', 'boostline_id8');
 fs.mkdirSync(dataDir, { recursive: true });
 const pack = path.join(dataDir, 'bmw-dme-data.json');
 if (obdOnly) {
@@ -71,7 +72,7 @@ const env = Object.assign({}, process.env, diesel ? { FAKE_DDE_PACK: pack } : {}
 
 const children = [
     spawn(process.execPath, [path.join(__dirname, 'bundle.js'), '--watch'], { cwd: ROOT, stdio: 'inherit' }),
-    spawn(process.execPath, [path.join(KIT, 'kit', 'tools', 'emu.js'), 'boostline', '--diag', path.join(ROOT, 'build', 'fake-dme.js')].concat(pass), { cwd: KIT, stdio: 'inherit', env }),
+    spawn(process.execPath, [path.join(KIT, 'kit', 'tools', 'emu.js'), 'boostline_id8', '--diag', path.join(ROOT, 'build', 'fake-dme.js')].concat(pass), { cwd: KIT, stdio: 'inherit', env }),
 ];
 const stop = (code) => { children.forEach((c) => { try { c.kill(); } catch (e) { /* gone */ } }); process.exit(code || 0); };
 children.forEach((c) => c.on('exit', (code) => stop(code)));

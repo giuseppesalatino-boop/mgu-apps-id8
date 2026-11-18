@@ -4,7 +4,7 @@
  *
  *   1. a check that the shared vendor/boostline and vendor/idrive7-apps are there (in the collection's root)
  *   2. patches/idrive7-apps/*.patch applied to the kit (the emulator on Windows, its diagnostics hook)
- *   3. app/ linked into the kit as apps/boostline (a junction on Windows), where its build and
+ *   3. app/ linked into the kit as apps/boostline_id8 (a junction on Windows), where its build and
  *      emulator look for apps
  *   4. an SDK placeholder in vendor/idrive7-apps/oap-sdk when there is no SDK: build.py stages every
  *      app with BMW's SDK, which isn't in git; the emulator never loads it. Car builds refuse the
@@ -20,7 +20,7 @@ const { execFileSync } = require('child_process');
 const ROOT = path.resolve(__dirname, '..');
 const REPO = path.resolve(ROOT, '..');          // the collection: vendor/ and patches/ are shared by every app
 const KIT = path.join(REPO, 'vendor', 'idrive7-apps');
-const APP_LINK = path.join(KIT, 'apps', 'boostline');
+const APP_LINK = path.join(KIT, 'apps', 'boostline_id8');
 const SDK = path.join(KIT, 'oap-sdk');
 const PLACEHOLDER_VERSION = '0.0.0-emulator-placeholder';
 
@@ -61,9 +61,9 @@ function linkApp() {
     try { exclude = path.resolve(KIT, git(['rev-parse', '--git-path', 'info/exclude'], KIT)); } catch (e) { /* not a git checkout */ }
     if (exclude) {
         const have = fs.existsSync(exclude) ? fs.readFileSync(exclude, 'utf8') : '';
-        if (have.indexOf('/apps/boostline') < 0) fs.appendFileSync(exclude, (have && !have.endsWith('\n') ? '\n' : '') + '/apps/boostline\n');
+        if (have.indexOf('/apps/boostline_id8') < 0) fs.appendFileSync(exclude, (have && !have.endsWith('\n') ? '\n' : '') + '/apps/boostline_id8\n');
     }
-    step('linked app/ as vendor/idrive7-apps/apps/boostline');
+    step('linked app/ as vendor/idrive7-apps/apps/boostline_id8');
 }
 
 function sdkPlaceholder() {

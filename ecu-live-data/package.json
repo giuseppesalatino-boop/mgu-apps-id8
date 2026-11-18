@@ -1,7 +1,7 @@
 {
-  "name": "ecu-live-data",
-  "version": "1.0.1",
-  "description": "ECU Live Data: Boostline's ECU logger for the BMW iDrive 7 (MGU) head unit, diesel (DDE) and petrol (DME): read-only engine logging over the head unit's own diagnostic link",
+  "name": "ecu-live-data-id8",
+  "version": "0.1.0",
+  "description": "ECU Live Data: Boostline's ECU logger for the BMW iDrive 8 head unit, diesel (DDE) and petrol (DME): read-only engine logging over the head unit's own diagnostic link",
   "private": true,
   "license": "MIT",
   "scripts": {

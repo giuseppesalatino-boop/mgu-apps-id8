@@ -1,6 +1,6 @@
 'use strict';
 /**
- * The package for a car: dist/boostline@<version>.mgu, for the kit's installer
+ * The package for a car: dist/boostline_id8@<version>.mgu, for the kit's installer
  * (vendor/idrive7-apps deploy/make-car-kit.sh, push-to-car.sh / .ps1).
  *
  *   node tools/build-car.js
@@ -21,9 +21,9 @@ if (sdkIsPlaceholder()) {
     process.exit(1);
 }
 const python = process.env.PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
-execFileSync(python, [path.join(KIT, 'kit', 'tools', 'build.py'), 'boostline'], { cwd: KIT, stdio: 'inherit' });
+execFileSync(python, [path.join(KIT, 'kit', 'tools', 'build.py'), 'boostline_id8'], { cwd: KIT, stdio: 'inherit' });
 const version = JSON.parse(fs.readFileSync(path.join(ROOT, 'app', 'app.json'), 'utf8')).version;
-const name = 'boostline@' + version + '.mgu';
+const name = 'boostline_id8@' + version + '.mgu';
 fs.mkdirSync(path.join(ROOT, 'dist'), { recursive: true });
 fs.copyFileSync(path.join(KIT, 'dist', name), path.join(ROOT, 'dist', name));
 console.log('build-car: dist/' + name + ' (contains BMW\'s SDK: for your own car only, never publish it)');

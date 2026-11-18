@@ -26,7 +26,6 @@ const { list, pill, TOP } = require('./kit/sheet');
 
 /** Session streams these whatever is chosen (the dyno and the drag timer need them). */
 const REQUIRED = ['engine.rpm', 'vehicle.speed', 'throttle.pedal', 'vehicle.gear'];
-const W = 1600;
 /** Group names that need saying what they are. */
 /** The engine ECU's name (DDE, DME, DDE/DME): the app sets it (picker.ECU.name = ...). */
 const ECU = { name: () => 'DDE/DME' };
@@ -185,7 +184,7 @@ function channelSheet(opts) {
             }
             const targets = [];
             // Back (a group) / Done: top right; the controller reaches it turning up from the first row
-            const bw = 150, bx = W - 40 - bw, by = TOP + 8;
+            const bw = 150, bx = r.w - 40 - bw, by = TOP + 8;
             pill(r, t, bx, by, bw, 46, this.open ? 'Back' : 'Done', this.controller && (this.open ? this.sub : this.focus) === -1);
             targets.push({ x: bx - 10, y: by - 6, w: bw + 20, h: 58, act: () => this.back() });
             const rects = list(r, t, this.key(), rows, this.open ? this.sub : this.focus, TOP + 74, this.controller);
@@ -325,7 +324,7 @@ function tileSheet(opts) {
             const tw = r.textWidth(head, 32, { font: 'bold' });
             r.text(msg || tiles(chosen) + ' of ' + opts.max + ' tiles, in the order ticked', 44 + tw + 24, TOP + 38, 22, msg ? t.warn : t.dim);
             const targets = [];
-            const bw = 150, bx = W - 40 - bw, by = TOP + 8;
+            const bw = 150, bx = r.w - 40 - bw, by = TOP + 8;
             pill(r, t, bx, by, bw, 46, this.open ? 'Back' : 'Done', this.controller && (this.open ? this.sub : this.focus) === -1);
             targets.push({ x: bx - 10, y: by - 6, w: bw + 20, h: 58, act: () => this.back() });
             const rects = list(r, t, this.key(), rows, this.open ? this.sub : this.focus, TOP + 74, this.controller);
@@ -397,7 +396,7 @@ function choiceSheet(opts) {
             r.clear(t.bg);
             r.text(opts.head || opts.title, 44, TOP + 40, 32, t.text, { font: 'bold' });
             const targets = [];
-            const bw = 150, bx = W - 40 - bw, by = TOP + 8;
+            const bw = 150, bx = r.w - 40 - bw, by = TOP + 8;
             pill(r, t, bx, by, bw, 46, 'Done', this.controller && this.focus === -1);
             targets.push({ x: bx - 10, y: by - 6, w: bw + 20, h: 58, act: () => 'close' });
             const rects = list(r, t, 'choice_' + opts.title, this.rows(), this.focus, TOP + 74, this.controller);
@@ -479,7 +478,7 @@ function fileSheet(opts) {
             const hint = msg || (item ? item.sub : folder ? 'Newest first' : 'What ECU Live Data saved: look at it or delete it');
             r.text(hint, 44 + tw + 24, TOP + 38, 22, msg ? t.warn : t.dim);
             const targets = [];
-            const bw = 150, bx = W - 40 - bw, by = TOP + 8;
+            const bw = 150, bx = r.w - 40 - bw, by = TOP + 8;
             pill(r, t, bx, by, bw, 46, this.level() ? 'Back' : 'Done', this.controller && this.cur() === -1);
             targets.push({ x: bx - 10, y: by - 6, w: bw + 20, h: 58, act: () => this.back() });
             const rects = list(r, t, this.key(), rows, this.cur(), TOP + 74, this.controller);
