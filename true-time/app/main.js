@@ -1,7 +1,9 @@
 'use strict';
 /**
- * True Time - acceleration and braking times on the iDrive 7 (MGU), measured and corrected for the
- * road's slope.
+ * True Time for iDrive 8 - acceleration and braking times, measured and corrected for the road's slope.
+ *
+ * The iDrive 7 app (giuseppesalatino-boop/mgu-apps) with its pages laid out across iDrive 8's wider page
+ * (ctx.pageWidth(): about 2200 x 520 there, 1600 x 520 elsewhere); what it measures and how is unchanged.
  *
  *   Acceleration  Arm, then a standing start or full throttle from a steady speed: every test the run
  *                 covers is timed at once (0-100, 100-200, 400 m, ... and the custom ranges). The run
@@ -13,7 +15,7 @@
  *                 page (Acceleration or Braking) with its chart. Delete a run, or all.
  *   Setup         units (metric / imperial), the one-foot rollout, the speedometer's error, slope
  *                 correction on or off, ten custom speed ranges, and what the sensors send.
- *   Settings      (the kit's) colour theme, screen layout, renderer, demo drive.
+ *   Settings      (the kit's) colour theme, renderer, demo drive.
  *
  * Everything comes from the car's own signals, with no diagnostic request: the speed, and the DSC's
  * longitudinal acceleration, which against the speed's change gives the road's slope (dscslope.js).
@@ -30,7 +32,9 @@ const { Store } = require('./store');
 const { Demo } = require('./sim');
 const { DscSlope } = require('./dscslope');
 
-const W = 1600, H = 520;
+const H = 520;
+// the page's width: 1600, wider on iDrive 8 (ctx.pageWidth(), read for each frame); X: what it has over 1600
+let W = 1600, X = 0;
 const GO = '#2fd27a';
 const SPEED_SCALE = 0.015625, ACCEL_SCALE = 0.002, ACCEL_OFFSET = -65, G0 = 9.80665;
 const CUSTOM_SLOTS = 10;
@@ -266,11 +270,14 @@ mgu.run({
             readout(cv, t, 48, Math.max(420, yy + 164), 372, 'ELEVATION', showing && G.isNum(pr.dh) ? signed(LEN(pr.dh), 1) : '--', lenU(), t.cold);
 
             // --- middle: speed (left scale) and elevation (right scale) over time ---
-            const C = G.panel(cv, t, 460, 56, 760, 456, 'Speed and elevation');
+            // (a wider page: the chart takes 60% of the extra width, the run's tests 40%)
+            const cw = 760 + Math.round(X * 0.6);
+            const C = G.panel(cv, t, 460, 56, cw, 456, 'Speed and elevation');
             dualChart(cv, t, C, vr ? vr.trace : rec.trace(), vr ? 'done' : rec.state, kind);
 
             // --- right: this run's tests ---
-            const R = G.panel(cv, t, 1236, 56, 340, 456, 'This run');
+            const rx = 460 + cw + 16;
+            const R = G.panel(cv, t, rx, 56, W - 24 - rx, 456, 'This run');
             runList(cv, t, R, kind, rec, vr);
         }
 
@@ -361,7 +368,7 @@ mgu.run({
             if (selected && !runs.some((r) => r.id === selected)) selected = null;
             if (!selected && runs.length) selected = runs[0].id;
             const kb = Math.round(store.bytes() / 1024);
-            const L = G.panel(cv, t, 24, 56, 520, 456, 'Saved runs (' + runs.length + ', ' + kb + ' KB)');
+            const L = G.panel(cv, t, 24, 56, 520 + Math.round(X * 0.3), 456, 'Saved runs (' + runs.length + ', ' + kb + ' KB)');
             const rowH = 44, top = L.y + 56, bottom = L.y + L.h - 66;
             const rows = Math.max(1, Math.floor((bottom - top) / rowH));
             const si = Math.max(0, runs.findIndex((r) => r.id === selected));
@@ -381,7 +388,7 @@ mgu.run({
             if (selected) G.button(cv, t, L.x + 20, by, 220, 42, 'Delete run', () => { if (viewRun && viewRun.meta.id === selected) viewRun = null; store.remove(selected); say('Run deleted'); selected = null; }, { key: 'delrun', confirm: true });
             if (runs.length) G.button(cv, t, L.x + L.w - 240, by, 220, 42, 'Delete all', () => { store.clear(); viewRun = null; say('All runs deleted'); selected = null; }, { key: 'delall', confirm: true, color: t.crit });
 
-            const R = G.panel(cv, t, 560, 56, 1016, 456, 'Run');
+            const R = G.panel(cv, t, L.x + L.w + 16, 56, W - 40 - L.x - L.w, 456, 'Run');
             const meta = runs.find((r) => r.id === selected);
             if (!meta) { cv.text('No run to show', R.x + 24, R.y + 90, 22, t.dim); return; }
             G.button(cv, t, R.x + R.w - 230, R.y + 12, 210, 40, 'Show graph', showGraph, { key: 'graph', primary: true });
@@ -431,7 +438,7 @@ mgu.run({
             });
         }
         function settingsPage(cv, t) {
-            const L = G.panel(cv, t, 24, 56, 760, 456, 'General');
+            const L = G.panel(cv, t, 24, 56, 760 + Math.round(X / 2), 456, 'General');
             let y = L.y + 54;
             choice(cv, t, L.x + 20, y, 'Units', [['metric', 'Metric'], ['imperial', 'Imperial']], opt('units'), (v) => settings.set('units', v)); y += 60;
             choice(cv, t, L.x + 20, y, '1 ft rollout', [[true, 'On'], [false, 'Off']], !!opt('rollout'), (v) => settings.set('rollout', v)); y += 60;
@@ -453,7 +460,7 @@ mgu.run({
             ];
             lines.forEach((l, i) => cv.text(fit(l, L.w - 40), L.x + 20, y + 22 + i * 28, 17, i === 2 ? t.dim : t.text));
 
-            const R = G.panel(cv, t, 800, 56, 776, 456, 'Custom speed ranges');
+            const R = G.panel(cv, t, L.x + L.w + 16, 56, W - 40 - L.x - L.w, 456, 'Custom speed ranges');
             const rowH = 40, top = R.y + 50;
             const maxV = (u) => (u === 'mph' ? 200 : 320);
             customs.forEach((c, i) => {
@@ -486,6 +493,7 @@ mgu.run({
 
         async function render() {
             const t = ctx.theme();
+            W = ctx.pageWidth ? ctx.pageWidth() : 1600; X = W - 1600;
             const cv = ctx.canvas(W, H).clear(t.bg);
             syncLabel();
             if (page === 0) runPage(cv, t, 'accel');

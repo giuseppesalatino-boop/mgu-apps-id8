@@ -1,11 +1,17 @@
 {
-  "id": "true_time",
+  "id": "true_time_id8",
   "title": "True Time",
-  "description": "Acceleration and braking times corrected for the road's slope (the DSC's acceleration sensor)",
-  "version": "0.3.1",
+  "description": "Acceleration and braking times corrected for the road's slope (the DSC's acceleration sensor), for iDrive 8",
+  "version": "0.1.0",
   "vendor": "giuseppesalatino-boop",
   "loggingId": "OAB7",
   "iconGlyph": "flag",
+  "mguHmi": [
+    "ID8"
+  ],
+  "needs": [
+    "renderer"
+  ],
   "maxDiskUsage": 67108864,
   "signals": {
     "de.bmw.infotainment.vehicle.Vehicle2": {
@@ -37,7 +43,8 @@
           "BTN_SETTINGS",
           "Settings"
         ]
-      ]
+      ],
+      "wide": true
     }
   ],
   "settings": [
@@ -62,22 +69,6 @@
         [
           "amber",
           "Night Amber"
-        ]
-      ]
-    },
-    {
-      "key": "layout",
-      "label": "Screen layout",
-      "type": "choice",
-      "default": "full",
-      "options": [
-        [
-          "full",
-          "Full screen"
-        ],
-        [
-          "standard",
-          "Standard"
         ]
       ]
     },

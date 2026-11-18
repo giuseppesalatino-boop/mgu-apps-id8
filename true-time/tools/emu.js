@@ -2,19 +2,19 @@
 /**
  * The live emulator (no car, no BMW SDK):
  *
- *   node tools/emu.js [--port 8077] [--no-touch]   ->  http://localhost:8077
+ *   node tools/emu.js [--port 8077] [--no-touch] [--id7]   ->  http://localhost:8077 (an iDrive 8 screen; --id7: iDrive 7's)
  *
  * Runs the kit's emulator (vendor/idrive7-apps kit/tools/emu.js) on True Time. In the app's Settings,
  * "Demo drive: Always" plays a drive on a road with hills (speed and the DSC's acceleration from
  * app/sim.js); with the emulator's own signals (its Demo drive / Manual sliders) the road is level.
- * The app's data (settings, runs) is kept in vendor/idrive7-apps/preview/emu/true_time/.
+ * The app's data (settings, runs) is kept in vendor/idrive7-apps/preview/emu/true_time_id8/.
  */
 const path = require('path');
 const { spawn } = require('child_process');
 const { setup, KIT, APP_ID } = require('./setup');
 
 setup();
-const child = spawn(process.execPath, [path.join(KIT, 'kit', 'tools', 'emu.js'), APP_ID].concat(process.argv.slice(2)),
+const child = spawn(process.execPath, [path.join(KIT, 'kit', 'tools', 'emu.js'), APP_ID].concat(process.argv.indexOf('--id7') < 0 ? ['--id8'] : [], process.argv.slice(2).filter((a) => a !== '--id7')),
     { cwd: KIT, stdio: 'inherit' });
 child.on('exit', (code) => process.exit(code || 0));
 process.on('SIGINT', () => { child.kill(); process.exit(0); });
