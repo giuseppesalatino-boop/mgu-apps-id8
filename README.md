@@ -1,5 +1,10 @@
 # mgu-apps-id8
 
+> [!WARNING]
+> **Not yet tested on an iDrive 8 car.** These apps have been built and tried only on a PC, in an emulator of the iDrive 8 screen. Nobody has run them on a real iDrive 8 head unit yet: they may not open, may draw in the wrong place, or may not react to touch or the controller. Install them only if you are ready to try and report back ([issues](https://github.com/giuseppesalatino-boop/mgu-apps-id8/issues)), and remove them from the Store if they misbehave.
+>
+> **They need the MGU Store's Renderer (mgu-render).** Each app requires it: the Store installs it first if it isn't there.
+
 The **iDrive 8** versions of the apps in [mgu-apps](https://github.com/giuseppesalatino-boop/mgu-apps) by [giuseppesalatino-boop](https://github.com/giuseppesalatino-boop). They do what the iDrive 7 apps do; only their screens are laid out for iDrive 8. The iDrive 7 apps stay as they are, in their own repository.
 
 | App | Folder | Id | What it does |
@@ -8,7 +13,17 @@ The **iDrive 8** versions of the apps in [mgu-apps](https://github.com/giuseppes
 | **ECU Live Data** | [`ecu-live-data/`](ecu-live-data) | `boostline_id8` | Live engine data from the DDE (diesel) or DME (petrol), CSV logs, road dyno and drag timer, read-only. A fork of [boostline-idrive](https://github.com/clucraft/boostline-idrive) (MIT) |
 | **DPF Monitoring** | [`dpf-monitoring/`](dpf-monitoring) | `dpf_id8` | The diesel particulate filter: soot and ash load, regenerations, differential pressure and exhaust temperatures from the DDE, read-only |
 
-> **Status: built and tried in the emulator, never run on an iDrive 8 car.** The apps aren't offered in the MGU Store yet: this repository has no `mgu-repo.json` until they've run on a car. See [What still needs a car](#what-still-needs-a-car).
+## Install from the MGU Store
+
+1. In the [MGU Store](https://github.com/robertnisipeanu/mgu-store), on its phone page (the QR code on the car's screen), add the GitHub source:
+   ```
+   giuseppesalatino-boop/mgu-apps-id8
+   ```
+   on the branch **main**.
+2. The Store lists the three apps as *(iDrive 8, untested)*. Each one's description says it hasn't been tested on an iDrive 8 car and that it needs the Store's Renderer.
+3. Install the ones you want. The Store installs the Renderer (mgu-render) first if it's missing. Then the head unit downloads only that app's files and the shared kit, and builds the app with the oap-sdk it takes from a BMW app already on the unit. No SDK, no PC, no cable.
+
+The Store won't install them on an iDrive 7 head unit (they say `mguHmi: ["ID8"]`): iDrive 7 cars use [mgu-apps](https://github.com/giuseppesalatino-boop/mgu-apps).
 
 ## How they draw on iDrive 8
 
@@ -48,9 +63,7 @@ Nobody has run these apps on an iDrive 8 head unit yet. To be checked there:
 
 ### Trying one on a car
 
-Two ways, both outside the Store's normal list:
-
-1. **The Store builds it on the car.** Add an `mgu-repo.json` that lists the app on a test branch, not on `main`. In the Store, add this repository on that branch; a private repository needs a GitHub token. The head unit then builds the app with the SDK of its own iDrive 8 firmware.
+1. **From the MGU Store,** as [above](#install-from-the-mgu-store): the head unit builds the app with the SDK of its own iDrive 8 firmware. The build on an iDrive 8 unit is untested too: if it fails, the Store shows why.
 2. **From a PC.** Put an oap-sdk extracted from an **iDrive 8** head unit in `vendor/idrive7-apps/oap-sdk/` and build the app (`npm run build:car` in its folder). Copy `vendor/idrive7-apps/dist/<id>@<version>.tgz` to the car and install it with the Store's deploy tool: `sh /var/opt/mgu-deploy/mgu-deploy.sh install --artifact /tmp/<id>@<version>.tgz --yes`. The package contains BMW's SDK: never publish it.
 
 Either way, the app's log (`/var/opt/public/oap/oap_<uid>/data/<id>.log`) and mgu-render's journal (`journalctl -b -u mgu-render`) say what happened.
@@ -58,6 +71,7 @@ Either way, the app's log (`/var/opt/public/oap/oap_<uid>/data/<id>.log`) and mg
 ## Layout
 
 ```
+mgu-repo.json         the Store's list of the apps (repo tree layout): iDrive 8 only, the Renderer required
 tools/build_unit.py   the Store's build of one app on the head unit (shared by every app)
 vendor/idrive7-apps   the MGU App Kit: runtime, renderer client, emulator, installer (MIT, shared)
 vendor/boostline      Boostline's engine code for ECU Live Data (MIT)

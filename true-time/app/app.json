@@ -12,6 +12,9 @@
   "needs": [
     "renderer"
   ],
+  "requires": {
+    "mgu-render": "0.3.1"
+  },
   "maxDiskUsage": 67108864,
   "signals": {
     "de.bmw.infotainment.vehicle.Vehicle2": {

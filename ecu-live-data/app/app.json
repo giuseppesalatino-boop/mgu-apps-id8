@@ -8,6 +8,7 @@
   "iconGlyph": "ECU",
   "mguHmi": ["ID8"],
   "needs": ["renderer"],
+  "requires": {"mgu-render": "0.3.1"},
   "maxDiskUsage": 134217728,
   "signals": {
     "de.bmw.infrastructure.VehicleCondition": {

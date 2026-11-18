@@ -1,6 +1,6 @@
 # True Time for iDrive 8
 
-> **iDrive 8 version (`true_time_id8` 0.1.0).** This is True Time from [mgu-apps](https://github.com/giuseppesalatino-boop/mgu-apps) (True Time 0.3.1), with its screens laid out for iDrive 8: the kit's iDrive 8 screens, drawn by the MGU Store's renderer (mgu-render) across a page about 2200 x 520 wide instead of 1600 x 520. On Acceleration and Braking the chart and the run's tests take the extra width; Results and Setup widen their two panels. What it measures, reads and saves is unchanged, and the rest of this README describes it as it is on iDrive 7. **It hasn't run on an iDrive 8 car yet** and isn't in the MGU Store: see the [collection's README](../README.md#what-still-needs-a-car).
+> **iDrive 8 version (`true_time_id8` 0.1.0).** This is True Time from [mgu-apps](https://github.com/giuseppesalatino-boop/mgu-apps) (True Time 0.3.1), with its screens laid out for iDrive 8: the kit's iDrive 8 screens, drawn by the MGU Store's renderer (mgu-render) across a page about 2200 x 520 wide instead of 1600 x 520. On Acceleration and Braking the chart and the run's tests take the extra width; Results and Setup widen their two panels. What it measures, reads and saves is unchanged, and the rest of this README describes it as it is on iDrive 7. **Not yet tested on an iDrive 8 car.** It needs the MGU Store's Renderer (mgu-render), which the Store installs with it. Install it from the source `giuseppesalatino-boop/mgu-apps-id8`: see the [collection's README](../README.md#install-from-the-mgu-store), and [what still needs a car](../README.md#what-still-needs-a-car).
 
 **Acceleration and braking times on the BMW iDrive 7 (MGU) head unit, measured and corrected for the road's slope.** Performance meters time a run on whatever road it was on: a 1 % downhill takes a tenth or more off a 0-100 km/h, and much more off a 100-200. True Time works out how much the road went up or down during the run, from the DSC's acceleration sensor, and shows every time twice: as measured, and as it would have been on level ground.
 
@@ -59,7 +59,7 @@ In the emulator, set **Demo drive: Always** in the app's settings: the app then 
 
 ## On a car
 
-Not in the MGU Store yet. To try it on an iDrive 8 car, see [Trying one on a car](../README.md#trying-one-on-a-car) in the collection's README: the Store builds it on the car from a test branch, or a PC builds it with an oap-sdk from an iDrive 8 head unit (`npm run build:car`, then the Store's deploy tool installs `vendor/idrive7-apps/dist/true_time_id8@<version>.tgz`). It needs the Store's renderer (mgu-render): without it the app draws in software, a few frames a second. A package with BMW's SDK in it is for your own car only: never publish it.
+In the MGU Store from the source `giuseppesalatino-boop/mgu-apps-id8` (untested on a car; it needs the Store's Renderer): see [Trying one on a car](../README.md#trying-one-on-a-car) in the collection's README: the Store builds it on the car from a test branch, or a PC builds it with an oap-sdk from an iDrive 8 head unit (`npm run build:car`, then the Store's deploy tool installs `vendor/idrive7-apps/dist/true_time_id8@<version>.tgz`). It needs the Store's renderer (mgu-render): without it the app draws in software, a few frames a second. A package with BMW's SDK in it is for your own car only: never publish it.
 
 ### Data
 

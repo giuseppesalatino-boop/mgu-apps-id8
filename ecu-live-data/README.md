@@ -1,6 +1,6 @@
 # ECU Live Data for iDrive 8
 
-> **iDrive 8 version (`boostline_id8` 0.1.0).** This is ECU Live Data from [mgu-apps](https://github.com/giuseppesalatino-boop/mgu-apps) (ECU Live Data 1.0.1), with its screens laid out for iDrive 8: the kit's iDrive 8 screens, drawn by the MGU Store's renderer (mgu-render) across a page about 2200 x 520 wide instead of 1600 x 520. Its pages already follow the page's width: the tiles (still 8 a page), the channel list, the dyno, the drag timer, Files and Status spread across it, and the channel pickers' buttons sit at their right edge. What it measures, reads and saves is unchanged, and the rest of this README describes it as it is on iDrive 7. **It hasn't run on an iDrive 8 car yet** and isn't in the MGU Store: see the [collection's README](../README.md#what-still-needs-a-car).
+> **iDrive 8 version (`boostline_id8` 0.1.0).** This is ECU Live Data from [mgu-apps](https://github.com/giuseppesalatino-boop/mgu-apps) (ECU Live Data 1.0.1), with its screens laid out for iDrive 8: the kit's iDrive 8 screens, drawn by the MGU Store's renderer (mgu-render) across a page about 2200 x 520 wide instead of 1600 x 520. Its pages already follow the page's width: the tiles (still 8 a page), the channel list, the dyno, the drag timer, Files and Status spread across it, and the channel pickers' buttons sit at their right edge. What it measures, reads and saves is unchanged, and the rest of this README describes it as it is on iDrive 7. **Not yet tested on an iDrive 8 car.** It needs the MGU Store's Renderer (mgu-render), which the Store installs with it. Install it from the source `giuseppesalatino-boop/mgu-apps-id8`: see the [collection's README](../README.md#install-from-the-mgu-store), and [what still needs a car](../README.md#what-still-needs-a-car).
 
 **Live engine data, CSV logs, a road dyno and a drag timer on the BMW iDrive 7 (MGU) head unit itself, for diesel (DDE) and petrol (DME) engines.** No laptop, phone, ENET cable or WiFi adapter: the head unit reads the engine computer over its own diagnostic link and shows live values, power curves and times on the centre display.
 
@@ -473,7 +473,7 @@ Boostline isn't affiliated with the rooting tool or its authors, and can't help 
 
 ## On a car
 
-> **iDrive 8:** not in the MGU Store yet and not tried on a car: see [Trying one on a car](../README.md#trying-one-on-a-car) in the collection's README. The steps below are iDrive 7's (the kit's installer); on iDrive 8 the app draws with the Store's renderer (mgu-render) and installs with the Store's deploy tool.
+> **iDrive 8:** in the MGU Store from the source `giuseppesalatino-boop/mgu-apps-id8`, not yet tested on a car: see [Trying one on a car](../README.md#trying-one-on-a-car) in the collection's README. The steps below are iDrive 7's (the kit's installer); on iDrive 8 the app draws with the Store's renderer (mgu-render) and installs with the Store's deploy tool.
 
 1. **Root the head unit** ([above](#rooting-your-head-unit)) **and get BMW's app SDK from it.** The [idrive7-apps README](https://github.com/cauliflowermossgrape/idrive7-apps#31-get-the-sdk-from-your-unit) explains how to:
    - copy one of BMW's preinstalled apps off the unit over SSH
