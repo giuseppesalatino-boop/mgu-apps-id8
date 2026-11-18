@@ -1,4 +1,6 @@
-# DPF Monitoring
+# DPF Monitoring for iDrive 8
+
+> **iDrive 8 version (`dpf_id8` 0.1.0).** This is DPF Monitoring from [mgu-apps](https://github.com/giuseppesalatino-boop/mgu-apps) (DPF Monitoring 0.1.1), with its screens laid out for iDrive 8: the kit's iDrive 8 screens, drawn by the MGU Store's renderer (mgu-render) across a page about 2200 x 520 wide instead of 1600 x 520. Overview's bars, Live data's histories and list, and History's two halves take the extra width; the kit's header shows the pages as tabs. What it measures, reads and saves is unchanged, and the rest of this README describes it as it is on iDrive 7. **It hasn't run on an iDrive 8 car yet** and isn't in the MGU Store: see the [collection's README](../README.md#what-still-needs-a-car).
 
 The diesel particulate filter of a BMW diesel on the iDrive 7 (MGU) head unit, in the look of BMW's own screens: soot and ash load, regenerations (live, interrupted, history), differential pressure and exhaust temperatures, read from the diesel engine unit (DDE) with UDS `0x22` ReadDataByIdentifier only. Nothing is ever written to the car.
 
@@ -10,13 +12,11 @@ The identifiers are in `app/app.json` (`config.dpf`), from the public SGBD refer
 
 ## Install
 
-From the MGU Store: add the source **`giuseppesalatino-boop/mgu-apps`** and install **DPF Monitoring** (see the [collection's README](../README.md)).
-
-From a PC, with BMW's SDK in the collection's `vendor/idrive7-apps/oap-sdk/`: `npm run build:car` writes `dist/dpf_id7@<version>.mgu` (it contains BMW's SDK: for your own car only, never publish it), then install it with the kit's installer in `vendor/idrive7-apps/deploy`.
+Not in the MGU Store yet. To try it on an iDrive 8 car, see [Trying one on a car](../README.md#trying-one-on-a-car) in the collection's README. From a PC, with an oap-sdk from an iDrive 8 head unit in the collection's `vendor/idrive7-apps/oap-sdk/`: `npm run build:car`, then install `vendor/idrive7-apps/dist/dpf_id8@<version>.tgz` with the Store's deploy tool. It contains BMW's SDK: for your own car only, never publish it.
 
 ## Emulator
 
-From this folder: `npm run emu`, then open http://localhost:8077. Without a DDE to answer, the app shows its demo values.
+From this folder: `npm run emu` (an iDrive 8 screen; `npm run emu -- --id7` for iDrive 7's), then open http://localhost:8077. Without a DDE to answer, the app shows its demo values.
 
 ## Disclaimer
 

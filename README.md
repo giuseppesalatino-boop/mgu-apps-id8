@@ -1,47 +1,82 @@
-# mgu-apps
+# mgu-apps-id8
 
-Apps for the BMW iDrive 7 (MGU) head unit by [giuseppesalatino-boop](https://github.com/giuseppesalatino-boop), in one repository: **one MGU Store source lists them all**, and each app installs and updates on its own.
+The **iDrive 8** versions of the apps in [mgu-apps](https://github.com/giuseppesalatino-boop/mgu-apps) by [giuseppesalatino-boop](https://github.com/giuseppesalatino-boop). They do what the iDrive 7 apps do; only their screens are laid out for iDrive 8. The iDrive 7 apps stay as they are, in their own repository.
 
-| App | Folder | What it does |
-|---|---|---|
-| **True Time** | [`true-time/`](true-time) | Acceleration and braking times, measured and corrected for the road's slope (the DSC's acceleration sensor) |
-| **ECU Live Data** | [`ecu-live-data/`](ecu-live-data) | Live engine data from the DDE (diesel) or DME (petrol), CSV logs, road dyno and drag timer, read-only. A fork of [boostline-idrive](https://github.com/clucraft/boostline-idrive) (MIT) |
-| **DPF Monitoring** | [`dpf-monitoring/`](dpf-monitoring) | The diesel particulate filter in the iDrive 7 look: soot and ash load, regenerations, differential pressure and exhaust temperatures from the DDE, read-only |
+| App | Folder | Id | What it does |
+|---|---|---|---|
+| **True Time** | [`true-time/`](true-time) | `true_time_id8` | Acceleration and braking times, measured and corrected for the road's slope (the DSC's acceleration sensor) |
+| **ECU Live Data** | [`ecu-live-data/`](ecu-live-data) | `boostline_id8` | Live engine data from the DDE (diesel) or DME (petrol), CSV logs, road dyno and drag timer, read-only. A fork of [boostline-idrive](https://github.com/clucraft/boostline-idrive) (MIT) |
+| **DPF Monitoring** | [`dpf-monitoring/`](dpf-monitoring) | `dpf_id8` | The diesel particulate filter: soot and ash load, regenerations, differential pressure and exhaust temperatures from the DDE, read-only |
 
-## Install from the MGU Store
+> **Status: built and tried in the emulator, never run on an iDrive 8 car.** The apps aren't offered in the MGU Store yet: this repository has no `mgu-repo.json` until they've run on a car. See [What still needs a car](#what-still-needs-a-car).
 
-1. In the [MGU Store](https://github.com/robertnisipeanu/mgu-store), on its phone page (the QR code on the car's screen), add the GitHub source:
-   ```
-   giuseppesalatino-boop/mgu-apps
-   ```
-   on **Tags** (only the collection's releases) or on the branch **main** (every change).
-2. Every app of the collection is listed: install the ones you want. The head unit downloads only the files of the app it builds (its folder and the shared kit) and builds it with the oap-sdk it takes from a BMW app already on the unit. No SDK, no PC, no cable.
-3. An app updates when its own files change (on **main**) or when its version goes up in a new release (on **Tags**). The others are left alone.
+## How they draw on iDrive 8
 
-A new app added to the collection shows up in the same source: nothing to add on the car.
+The apps are built with the MGU App Kit of [idrive7-apps](https://github.com/cauliflowermossgrape/idrive7-apps) (cauliflowermossgrape, MIT), vendored in `vendor/idrive7-apps` at a newer version than mgu-apps uses, one that knows iDrive 8:
+
+- **Screens.** The kit writes the HMI's screen description for both head units (`rhmiData/uiDescriptions/ID7` and `ID8`). On iDrive 8 each screen is an `LT_State_Wide_List` with its buttons as `LT_Button_MediaEntry_1Row` rows: the widgets the MGU Store's own app uses there.
+- **Drawing.** As on iDrive 7, the apps don't send pictures: they send drawing commands to a GPU renderer, which draws them at the display's rate. On iDrive 8 that renderer is the MGU Store's **mgu-render** (its `/run/mgu-render/render.sock`, protocol `mgu-render/1`), which draws the app on its own layer over the area under the HMI's status bar: 2880 x 764 of the 2880 x 960 screen (the climate bar stays below). Each app says so in its package: `mguHmi: ["ID8"]`, `mguNeeds: ["renderer"]`.
+- **The wide page.** On iDrive 7 an app draws a 1600 x 520 page that the kit scales into the screen. iDrive 8's area is much wider, so that page would sit in the middle with about 400 px empty on each side. This repository's kit patch ([`patches/idrive7-apps/id8-wide-page-emulator-manifest.patch`](patches/idrive7-apps/id8-wide-page-emulator-manifest.patch)) gives a screen marked `"wide": true` a page as high as before (520) and as wide as the area allows (about 2200). Each app reads the width with `ctx.pageWidth()` and lays its pages out across it.
+- **Header and bar.** The kit draws the app's name and its pages as tabs at the top, and a slim button bar at the bottom, as in the iDrive 7 apps' full-screen layout. iDrive 8 has only this layout: the *Screen layout* setting is gone.
+
+The patch also writes `mguHmi`, `mguNeeds` and `mguRequires` from `app.json` into the package's `package.json`, and gives the emulator an iDrive 8 screen (`--id8`). Everything changed in the vendored kit is listed in [VENDORED.md](vendor/idrive7-apps/VENDORED.md).
+
+## What was checked on a PC
+
+- **Builds.** Each app builds with `tools/build_unit.py` (the build the MGU Store runs on the car) with the emulator's SDK placeholder: the package has both screen descriptions and `mguHmi: ["ID8"]` in its `package.json`.
+- **Tests.**
+  - True Time: 20 of 20 (`npm test` in `true-time`).
+  - ECU Live Data: 23 of 23 (`npm test` in `ecu-live-data`).
+  - The kit's iDrive 8 screen check (`python kit/tools/test_id8_ui.py`): 15 of 15.
+  - The kit's runtime tests (`node kit/tools/test_runtime.js`): 15 of 15. On Windows they need a named pipe in place of the Unix socket the script makes.
+- **Emulator, iDrive 8 screen.** Every page of the three apps was opened in the emulator's 2880 x 960 screen and fills the width:
+  - True Time: Acceleration, Setup.
+  - DPF Monitoring: Overview, Live data, History.
+  - ECU Live Data, on the emulator's fake DME: its live tiles, Channels and the channel picker, Dyno, Drag.
+
+## What still needs a car
+
+Nobody has run these apps on an iDrive 8 head unit yet. To be checked there:
+
+- **The screens open.** iDrive 8's HMI (Hmi8) opens the apps' `ID8` screens. The kit's Warm-Up app opened on a G20 with iDrive 8 ([idrive7-apps issue #152](https://github.com/cauliflowermossgrape/idrive7-apps/issues/152)), but these apps haven't been tried.
+- **The picture.** It sits where it should, under the status bar and above the climate bar, and the text has a sensible size. The area (0,76 2880x764) is the default mgu-render reports on iDrive 8, not a measurement on a car.
+- **Touch.** Tabs, bar buttons and page buttons react where they are drawn.
+- **The iDrive controller.** iDrive 8 has no controller gate, so the controller stays with the HMI and moves through the screen's rows. Whether the slim bar follows its focus is open.
+- **The renderer.** mgu-render took at most 16 apps at a time in issue #152, so an app opened after 16 others may fall back to the HMI's plain image.
+- **The car's signals.** Speed and the DSC's acceleration (True Time), the engine's values on the bus (ECU Live Data's dyno and Power page), and the road gradient signal (`VehicleModel.LaneSlope`, True Time's Setup page). IterioDev's iDrive 8 apps use the same `Vehicle2`, `CDS`, `CDS2` and `FES` services, but our fields haven't been checked there.
+- **Diagnostics.** The DDE/DME answering over the head unit's TASU link (HSFZ: ECU Live Data, DPF Monitoring). IterioDev's Car Data uses the same `InternalTasu` instance on iDrive 8.
+
+### Trying one on a car
+
+Two ways, both outside the Store's normal list:
+
+1. **The Store builds it on the car.** Add an `mgu-repo.json` that lists the app on a test branch, not on `main`. In the Store, add this repository on that branch; a private repository needs a GitHub token. The head unit then builds the app with the SDK of its own iDrive 8 firmware.
+2. **From a PC.** Put an oap-sdk extracted from an **iDrive 8** head unit in `vendor/idrive7-apps/oap-sdk/` and build the app (`npm run build:car` in its folder). Copy `vendor/idrive7-apps/dist/<id>@<version>.tgz` to the car and install it with the Store's deploy tool: `sh /var/opt/mgu-deploy/mgu-deploy.sh install --artifact /tmp/<id>@<version>.tgz --yes`. The package contains BMW's SDK: never publish it.
+
+Either way, the app's log (`/var/opt/public/oap/oap_<uid>/data/<id>.log`) and mgu-render's journal (`journalctl -b -u mgu-render`) say what happened.
 
 ## Layout
 
 ```
-mgu-repo.json         the Store's list of the apps (repo tree layout)
 tools/build_unit.py   the Store's build of one app on the head unit (shared by every app)
-vendor/idrive7-apps   the MGU app kit: runtime, GPU renderer, emulator, installer (MIT, shared)
+vendor/idrive7-apps   the MGU App Kit: runtime, renderer client, emulator, installer (MIT, shared)
 vendor/boostline      Boostline's engine code for ECU Live Data (MIT)
-patches/              the kit's patch (the emulator on Windows, its diagnostics hook)
+patches/              the kit's patches (the emulator on Windows; iDrive 8's wide page, manifest, emulator)
 true-time/            True Time: app/, tools/ (setup, emu, build-car), test/, README
 ecu-live-data/        ECU Live Data: app/, core/, emu/, tools/, test/, README
 dpf-monitoring/       DPF Monitoring: app/, tools/ (setup, emu, build-car), README
 ```
 
-Each app is worked on from its own folder, as before: `cd true-time` (or `ecu-live-data`, `dpf-monitoring`), then `npm install` (ECU Live Data only), `npm run emu`, `npm test`, `npm run build:car`. See each app's README.
+Each app is worked on from its own folder: `cd true-time` (or `ecu-live-data`, `dpf-monitoring`), then `npm run setup` (ECU Live Data: `npm install` first), `npm run emu` (an iDrive 8 screen; `-- --id7` for iDrive 7's), `npm test`, `npm run build:car`.
 
 **No BMW software in this repository.** BMW's oap-sdk, built car packages (`.mgu`, `dist/`) and BMW's DME data (`bmw-dme-data.json`) are never committed (see `.gitignore`).
 
-## Adding an app
+## Credits
 
-1. Put it in its own folder with its `app/` (the kit's `app.json` and code), as the others.
-2. Add an entry to `mgu-repo.json` with the app's id, its `path` (`<folder>/app`) and the same `build` as the others.
-3. Commit, push and, for the **Tags** channel, tag a new release (`git tag v1.1.0 && git push --tags`).
+- [idrive7-apps](https://github.com/cauliflowermossgrape/idrive7-apps) by cauliflowermossgrape (MIT): the kit, its iDrive 8 screens and placement, the emulator and the installer. Its renderer and the emulator's draw engine come from mgu-render (GPL-3.0-or-later, see the kit's `kit/renderd`).
+- [mgu-store](https://github.com/robertnisipeanu/mgu-store) by Robert Nisipeanu (GPL-3.0): mgu-render, the renderer the apps draw with on iDrive 8, and the Store's publishing rules. Nothing of the Store is copied here; the apps talk to its renderer through the kit.
+- [Boostline](https://github.com/clucraft/Boostline) and [boostline-idrive](https://github.com/clucraft/boostline-idrive) (MIT): ECU Live Data's engine code.
+- Ideas for iDrive 8, no code: IterioDev's [car-apps](https://github.com/IterioDev/car-apps) (PolyForm Strict) and iDrive Labs' [Sideways](https://github.com/idrive-labs/sideways) (GPL-3.0) showed how apps draw on iDrive 8's screen.
 
 ## Disclaimer
 

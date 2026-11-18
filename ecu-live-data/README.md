@@ -1,4 +1,6 @@
-# ECU Live Data for iDrive 7
+# ECU Live Data for iDrive 8
+
+> **iDrive 8 version (`boostline_id8` 0.1.0).** This is ECU Live Data from [mgu-apps](https://github.com/giuseppesalatino-boop/mgu-apps) (ECU Live Data 1.0.1), with its screens laid out for iDrive 8: the kit's iDrive 8 screens, drawn by the MGU Store's renderer (mgu-render) across a page about 2200 x 520 wide instead of 1600 x 520. Its pages already follow the page's width: the tiles (still 8 a page), the channel list, the dyno, the drag timer, Files and Status spread across it, and the channel pickers' buttons sit at their right edge. What it measures, reads and saves is unchanged, and the rest of this README describes it as it is on iDrive 7. **It hasn't run on an iDrive 8 car yet** and isn't in the MGU Store: see the [collection's README](../README.md#what-still-needs-a-car).
 
 **Live engine data, CSV logs, a road dyno and a drag timer on the BMW iDrive 7 (MGU) head unit itself, for diesel (DDE) and petrol (DME) engines.** No laptop, phone, ENET cable or WiFi adapter: the head unit reads the engine computer over its own diagnostic link and shows live values, power curves and times on the centre display.
 
@@ -67,7 +69,7 @@ Boostline reads the same set of channels for the tiles, the Channels page and a 
 - **Defaults** at the top of the picker goes back to the pages' set.
 - **The tiles follow the choice:** untick a channel and its tile goes too.
 - **Your choice is kept** between drives, in `boostline-app.json` in the app's data folder.
-- **The picker needs the default display settings,** *Screen layout: Full screen* and *Renderer: GPU*, because the kit draws it over the page.
+- **The picker needs the default display setting** *Renderer: GPU*, because the kit draws it over the page.
 
 ### Parameters you can log
 
@@ -471,6 +473,8 @@ Boostline isn't affiliated with the rooting tool or its authors, and can't help 
 
 ## On a car
 
+> **iDrive 8:** not in the MGU Store yet and not tried on a car: see [Trying one on a car](../README.md#trying-one-on-a-car) in the collection's README. The steps below are iDrive 7's (the kit's installer); on iDrive 8 the app draws with the Store's renderer (mgu-render) and installs with the Store's deploy tool.
+
 1. **Root the head unit** ([above](#rooting-your-head-unit)) **and get BMW's app SDK from it.** The [idrive7-apps README](https://github.com/cauliflowermossgrape/idrive7-apps#31-get-the-sdk-from-your-unit) explains how to:
    - copy one of BMW's preinstalled apps off the unit over SSH
    - extract the SDK from it into `vendor/idrive7-apps/oap-sdk/` with `kit/tools/extract_sdk.js`, replacing the placeholder
@@ -480,7 +484,7 @@ Boostline isn't affiliated with the rooting tool or its authors, and can't help 
    npm run build:car
    ```
 
-   This writes `dist/boostline@<version>.mgu`. It refuses to build with the placeholder SDK. The package contains BMW's SDK, so keep it for your own car and never publish it.
+   This writes `dist/boostline_id8@<version>.mgu` (and `vendor/idrive7-apps/dist/boostline_id8@<version>.tgz`, which the Store's deploy tool installs on iDrive 8: `mgu-deploy.sh install --artifact`). For iDrive 8 the SDK must come from an iDrive 8 head unit. It refuses to build with the placeholder SDK. The package contains BMW's SDK, so keep it for your own car and never publish it.
 3. **Install it** with the kit's installer in `vendor/idrive7-apps`, as its README describes. It also installs the GPU renderer.
    - Build the car kit with `deploy/make-car-kit.sh`.
    - Push it with `push-to-car.sh` (Linux/macOS) or `push-to-car.ps1` (Windows), using the SSH key and address from the rooting tool:

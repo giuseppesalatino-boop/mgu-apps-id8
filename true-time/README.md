@@ -1,4 +1,6 @@
-# True Time for iDrive 7
+# True Time for iDrive 8
+
+> **iDrive 8 version (`true_time_id8` 0.1.0).** This is True Time from [mgu-apps](https://github.com/giuseppesalatino-boop/mgu-apps) (True Time 0.3.1), with its screens laid out for iDrive 8: the kit's iDrive 8 screens, drawn by the MGU Store's renderer (mgu-render) across a page about 2200 x 520 wide instead of 1600 x 520. On Acceleration and Braking the chart and the run's tests take the extra width; Results and Setup widen their two panels. What it measures, reads and saves is unchanged, and the rest of this README describes it as it is on iDrive 7. **It hasn't run on an iDrive 8 car yet** and isn't in the MGU Store: see the [collection's README](../README.md#what-still-needs-a-car).
 
 **Acceleration and braking times on the BMW iDrive 7 (MGU) head unit, measured and corrected for the road's slope.** Performance meters time a run on whatever road it was on: a 1 % downhill takes a tenth or more off a 0-100 km/h, and much more off a 100-200. True Time works out how much the road went up or down during the run, from the DSC's acceleration sensor, and shows every time twice: as measured, and as it would have been on level ground.
 
@@ -8,7 +10,7 @@
 
 ## What it does
 
-Four pages, plus the kit's Settings (colour theme, screen layout, renderer, demo drive):
+Four pages, plus the kit's Settings (colour theme, renderer, demo drive):
 
 - **Acceleration.** Press **Arm**, then:
   - **standing start:** stop, then launch. The clock starts on the first movement, or after the first foot with the one-foot rollout (on by default, as on a drag strip).
@@ -57,25 +59,11 @@ In the emulator, set **Demo drive: Always** in the app's settings: the app then 
 
 ## On a car
 
-### From the MGU Store (the easy way)
-
-True Time is one of the apps of [mgu-apps](https://github.com/giuseppesalatino-boop/mgu-apps), a Store source in the *repo tree* layout ([`mgu-repo.json`](../mgu-repo.json)): the head unit downloads it and builds the app itself, with the oap-sdk it takes from a BMW app already on the unit. No SDK, no PC, no cable.
-
-1. In the [MGU Store](https://github.com/robertnisipeanu/mgu-store), on its phone page (the QR code on the car's screen), add the GitHub source **`giuseppesalatino-boop/mgu-apps`**, on **Tags** (each release of the collection) or on the branch **main** (every change). It lists every app of the collection.
-2. Install **True Time** from it. Updates show up in the Store like the other apps'.
-3. For the touch buttons (Setup page, Delete on Results) the app needs the GPU renderer: the idrive7-apps source installs it with its apps, or the Store's own Renderer. Without one the app draws in software and the buttons in the bar still work.
-
-The build on the unit is [`tools/build_unit.py`](../tools/build_unit.py) (in the collection's root): it puts `app/` into the vendored kit and runs the kit's `build.py`.
-
-### From a PC
-
-1. **BMW's SDK:** copy the SDK you extracted from your head unit into the collection's `vendor/idrive7-apps/oap-sdk/` (the same one the idrive7-apps kit and ECU Live Data use).
-2. **Build:** `npm run build:car` writes `dist/true_time@<version>.mgu`. It contains BMW's SDK: keep it for your own car and never publish it.
-3. **Install** with the kit's installer in the collection's `vendor/idrive7-apps`: `deploy\make-car-kit.cmd true_time`, then `deploy\push-to-car.ps1 -Key <...\enrollments\<VIN>\id_rsa> -Ip <address>`. Run its `check` first: it changes nothing and lists what `install` would do.
+Not in the MGU Store yet. To try it on an iDrive 8 car, see [Trying one on a car](../README.md#trying-one-on-a-car) in the collection's README: the Store builds it on the car from a test branch, or a PC builds it with an oap-sdk from an iDrive 8 head unit (`npm run build:car`, then the Store's deploy tool installs `vendor/idrive7-apps/dist/true_time_id8@<version>.tgz`). It needs the Store's renderer (mgu-render): without it the app draws in software, a few frames a second. A package with BMW's SDK in it is for your own car only: never publish it.
 
 ### Data
 
-Runs are saved one file each in `/var/opt/public/oap/oap_<uid>/data/runs/`, with the speed and elevation trace and, from the standstill before a standing start, the DSC's reading and the car's road gradient signal (raw), for calibrating that signal later. The log is `data/true_time.log`.
+Runs are saved one file each in `/var/opt/public/oap/oap_<uid>/data/runs/`, with the speed and elevation trace and, from the standstill before a standing start, the DSC's reading and the car's road gradient signal (raw), for calibrating that signal later. The log is `data/true_time_id8.log`.
 
 ## What still needs a car
 
