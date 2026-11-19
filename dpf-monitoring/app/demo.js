@@ -45,13 +45,14 @@ class DemoDpf {
         this.tExh += (target - this.tExh) * Math.min(1, dt * 0.12);
         const noise = (a) => (Math.random() - 0.5) * a;
         return {
+            coolant: 88 + noise(2),
             soot: this.soot,
             sootSim: this.soot * 1.06 + 0.3,
             ash: 41.7,
             distSince: this.km,
             avgInterval: 412,
             fuelSince: this.fuel,
-            regenReq: this.regen ? 2 : 0,
+            regenReq: this.regen ? 4 : 0,
             interrupted: 0,
             lock: 0,
             dp: 18 + this.soot * 1.4 + noise(3),

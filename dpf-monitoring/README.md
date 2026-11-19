@@ -1,12 +1,19 @@
 # DPF Monitoring for iDrive 8
 
-> **iDrive 8 version (`dpf_id8` 1.0.0).** This is DPF Monitoring from [mgu-apps](https://github.com/giuseppesalatino-boop/mgu-apps) (DPF Monitoring 0.1.1), with its screens laid out for iDrive 8: the kit's iDrive 8 screens, drawn by the MGU Store's renderer (mgu-render) across a page about 2200 x 520 wide instead of 1600 x 520. Overview's bars, Live data's histories and list, and History's two halves take the extra width; the kit's header shows the pages as tabs. What it measures, reads and saves is unchanged, and the rest of this README describes it as it is on iDrive 7. **Not yet tested on an iDrive 8 car.** It needs the MGU Store's Renderer (mgu-render), which the Store installs with it. Install it from the source `giuseppesalatino-boop/mgu-apps-id8`: see the [collection's README](../README.md#install-from-the-mgu-store), and [what still needs a car](../README.md#what-still-needs-a-car).
+> **iDrive 8 version (`dpf_id8` 1.1.0).** This is DPF Monitoring 1.1.0 from [mgu-apps](https://github.com/giuseppesalatino-boop/mgu-apps), that is [sas46's DPF Monitor](https://github.com/sas46/idrive7_dpf_app) 0.1.6, with its screens laid out for iDrive 8: the kit's iDrive 8 screens, drawn by the MGU Store's renderer (mgu-render) across a page about 2200 x 520 wide instead of 1600 x 520. Overview's bars, Live data's histories and list, History's two halves and the experimental Regeneration page take the extra width; the kit's header shows the pages as tabs. What it measures, reads and saves is unchanged, and the rest of this README describes it as it is on iDrive 7. **Not yet tested on an iDrive 8 car.** It needs the MGU Store's Renderer (mgu-render), which the Store installs with it. Install it from the source `giuseppesalatino-boop/mgu-apps-id8`: see the [collection's README](../README.md#install-from-the-mgu-store), and [what still needs a car](../README.md#what-still-needs-a-car).
 
 The diesel particulate filter of a BMW diesel on the iDrive 7 (MGU) head unit, in the look of BMW's own screens: soot and ash load, regenerations (live, interrupted, history), differential pressure and exhaust temperatures, read from the diesel engine unit (DDE) with UDS `0x22` ReadDataByIdentifier only. Nothing is ever written to the car.
 
 - **Overview:** soot load and exhaust temperature as bars, a drawing of the filter with soot, ash, heat and the pressure difference, and the status (filter OK / regeneration due / running).
 - **Live data:** soot, pressure difference and both exhaust temperatures with their last 5 minutes; every other value as a list, with the raw replies on request.
 - **History:** the regenerations the app has watched and the intervals from the engine unit's memory.
+- **Regeneration** (off by default; Settings > Experimental): the coolant and exhaust temperatures, the distance since the last regeneration and the lock status, against reference values. Information only: its button is a placeholder, and no regeneration is ever requested.
+
+**1.1.0 is [sas46's DPF Monitor](https://github.com/sas46/idrive7_dpf_app) 0.1.6** (MIT), with this collection's icon, id and name. Over 1.0.0 it brings:
+- the regeneration request (`44BB` = 6, *Regeneration requested*, waiting for the right conditions) told apart from a running regeneration (`44BB` = 4); any other value shows *Regeneration status unknown* with the value. This mapping was observed on sas46's car (X5 G05 25d) and may differ on other DDEs;
+- the engine coolant temperature from the car's bus (`CDS.statusEngineTemperature`);
+- the experimental Regeneration page above;
+- the pages only as tabs in the kit's header (no second row of the same buttons at the bottom).
 
 The identifiers are in `app/app.json` (`config.dpf`), from the public SGBD reference of the G-series DDE 8.3 (B37 / B47 / B57).
 
@@ -26,4 +33,4 @@ From this folder: `npm run emu` (an iDrive 8 screen; `npm run emu -- --id7` for 
 
 ## Licence
 
-MIT ([LICENSE](LICENSE)). Built on [idrive7-apps](https://github.com/cauliflowermossgrape/idrive7-apps) by cauliflowermossgrape (MIT), from its DPF Monitor. Not affiliated with or endorsed by BMW.
+MIT ([LICENSE](LICENSE)). The app is [sas46's DPF Monitor](https://github.com/sas46/idrive7_dpf_app) (MIT, © sas46), grown from 2bhacker9's original DPF prototype ([idrive7-apps issue #88](https://github.com/cauliflowermossgrape/idrive7-apps/issues/88)); both copyright notices are in [LICENSE](LICENSE). Built on [idrive7-apps](https://github.com/cauliflowermossgrape/idrive7-apps) by cauliflowermossgrape (MIT). Not affiliated with or endorsed by BMW.

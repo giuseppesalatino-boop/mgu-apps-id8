@@ -1,12 +1,13 @@
 'use strict';
 /**
- * DPF Monitoring for iDrive 8 - the iDrive 7 app (giuseppesalatino-boop/mgu-apps) on iDrive 8's screen.
+ * DPF Monitoring for iDrive 8 - sas46's DPF Monitor (github.com/sas46/idrive7_dpf_app, 0.1.6, MIT), itself grown
+ * from 2bhacker9's DPF prototype (cauliflowermossgrape/idrive7-apps issue #88), on iDrive 8's screen.
  *
  * The kit's header (the pages as tabs) and slim bar are over the page; the page is ctx.pageWidth() wide
  * (about 2200 x 520 on iDrive 8, 1600 x 520 elsewhere) and each page lays itself out across it. Black,
  * thin lines, light type, the slanted silver bars with the accent needle, the filter drawn on the right.
  *
- * Pages (tabs in the kit's header; the bar buttons Overview / Live data / History do the same):
+ * Pages (tabs in the kit's header):
  *   Overview    soot load and exhaust temperature as bars, the filter drawing with soot, ash, heat and
  *               the pressure difference, the status (filter OK / regeneration due / running) under it
  *   Live data   soot, pressure difference and both exhaust temperatures with their last 5 minutes,
@@ -48,9 +49,15 @@ const SPARK_N = 150;               // the history lines: the last 5 min
 mgu.run({
     async start(ctx) {
         const { ui, settings, log } = ctx;
+        let coolant = null, coolantAt = 0;
         const cfg = Object.assign({ ecu: 18, history: [] }, (ctx.spec.config && ctx.spec.config.dpf) || {});
         const mono = () => { const h = process.hrtime(); return h[0] * 1000 + h[1] / 1e6; };   // steady clock (the wall clock jumps at start-up)
         const t0 = mono();
+        ctx.signals.watch('de.bmw.infotainment.vehicle.CDS', '1', {statusEngineTemperature: (v) => {
+            const raw = v.temperatureEngineDrive;
+            coolant = Number.isFinite(raw) && raw >= 0 && raw < 255 ? raw - 48 : null;
+            coolantAt = mono();
+        }}, log).catch(e => log.warn('coolant: ' + e));
 
         /* ---------- what the app remembers (data/dpf.json) ---------- */
         const FILE = path.join(ctx.dataDir, 'dpf.json');
@@ -130,7 +137,7 @@ mgu.run({
                 return Object.assign({ demo: true }, demoVals);
             }
             demo = null; demoVals = null;
-            const out = { demo: false, history: histOdo };
+            const out = { demo: false, history: histOdo, coolant: mono() - coolantAt < 15000 ? coolant : null };
             const fastMax = Math.max(15000, (settings.get('rate') || 2) * 5000);
             ALL.forEach((k) => { out[k] = at[k] && mono() - at[k] < (FAST.indexOf(k) >= 0 ? fastMax : 120000) ? live[k] : null; });
             return out;
@@ -168,7 +175,7 @@ mgu.run({
         function tick() {
             if (demo) demoVals = demo.sample();
             const d = snap = data();
-            const active = G.isNum(d.regenReq) && d.regenReq > 0;
+            const active = d.regenReq === 4;
             if (regen && regen.demo !== d.demo) regen = null;           // switched between demo and the car
             if (active && !regen) {
                 regen = { t0: mono(), date: Date.now(), sootStart: d.soot, peakT: d.tDpf, demo: d.demo };
@@ -273,7 +280,9 @@ mgu.run({
             if (running()) {
                 title = 'Regeneration running'; dot = P.heat;
                 sub = 'For ' + dur((mono() - regen.t0) / 1000) + ' min  -  please keep the engine running';
-            } else if (!G.isNum(d.soot)) { title = 'No data'; sub = why('soot'); }
+            } else if (d.regenReq === 6) { title = 'Regeneration requested'; dot = P.warn; sub = 'Waiting for regeneration conditions'; }
+            else if (G.isNum(d.regenReq) && d.regenReq !== 0 && d.regenReq !== 4) { title = 'Regeneration status unknown'; sub = 'DID 44BB: ' + d.regenReq; }
+            else if (!G.isNum(d.soot)) { title = 'No data'; sub = why('soot'); }
             else if (d.soot >= thr * 0.9) { title = 'Regeneration due'; dot = P.warn; sub = 'A longer drive at a steady speed helps the filter to clean itself'; }
             else {
                 const left = kmLeft(d, thr);
@@ -381,16 +390,49 @@ mgu.run({
             ID7.row(cv, P, 970 + h2, 454, 590 + X - h2, 44, 'Oil ash in the filter', num(d.ash, 1, 'g'), { size: 21 });
         }
 
+        function drawRegeneration(cv, P, d) {
+            cv.text('Current conditions / reference requirements', 40, 65, 25, P.text);
+            const temp = v => num(T(v), 0, tU());
+            const refTemp = v => 'Reference: > ' + Math.round(T(v)) + ' ' + tU();
+            const items = [
+                ['Engine coolant', temp(d.coolant), refTemp(75)],
+                ['Exhaust before DPF', temp(d.tDpf), refTemp(240)],
+                ['Distance since last regeneration', num(d.distSince, 1, 'km'), 'Required: not yet verified'],
+                ['Regeneration locked', G.isNum(d.lock) ? (d.lock === 0 ? 'No' : 'Yes') : '--', 'Required: No (verify DID mapping)'],
+            ];
+            // (a wider page: the four values take half the extra width, the notice on the right moves over)
+            const h = Math.floor(X / 2);
+            items.forEach((a,i) => {
+                const x = 40 + (i % 2)*(465 + h), y = 100 + Math.floor(i/2)*175;
+                cv.fillRect(x,y,435 + h,1,P.line);
+                cv.text(a[0],x,y+35,23,P.dim);
+                cv.text(a[1],x,y+95,43,P.text);
+                cv.text(a[2],x,y+135,20,P.dim);
+            });
+            cv.text('Reference values only; DDE-specific conditions unverified.',40,485,20,P.dim);
+            cv.fillRect(975 + X,52,1,440,P.line);
+            cv.text('Experimental',1010 + X,85,25,P.warn);
+            cv.text('Use at your own risk.',1010 + X,145,30,P.warn);
+            cv.text('Forcing a regen is not recommended.',1010 + X,190,24,P.text);
+            cv.text('Incorrect use may damage the DPF or engine.',1010 + X,230,22,P.dim);
+            cv.text('Driving regeneration request only.',1010 + X,275,22,P.dim);
+            cv.roundRect(1010 + X,330,535,78,8,P.line);
+            cv.text('Work in progress',1277 + X,380,27,P.dim,{align:'center'});
+            cv.text('No regeneration command is sent.',1010 + X,450,22,P.dim);
+        }
+
+        const pages = () => settings.get('experimentalRegen') ? PAGES.concat('Regeneration') : PAGES;
         /* ---------- screen ---------- */
         let page = 0;
         async function render() {
             const P = ID7.palette(settings.get('accent')), d = snap;
             W = ctx.pageWidth ? ctx.pageWidth() : 1600; X = W - 1600;
             const cv = ctx.canvas(W, H).clear(P.bg);
-            [drawOverview, drawLive, drawHistory][page](cv, P, d);
+            if (page >= pages().length) page = 0;
+            [drawOverview, drawLive, drawHistory, drawRegeneration][page](cv, P, d);
             if (cv.chrome) {
                 // full-screen layout: the kit's header with the pages as tabs
-                G.frame(cv, P, PAGES, page, [d.demo && { text: 'DEMO' }, running() && { text: 'REGENERATING', color: P.heat }]);
+                G.frame(cv, P, pages(), page, [d.demo && { text: 'DEMO' }, running() && { text: 'REGENERATING', color: P.heat }, d.regenReq === 6 && { text: 'REQUESTED', color: P.warn }]);
             } else {
                 // iDrive layout: the HMI's title is over the page; the badges go top right of the page
                 // (a running regeneration: Overview says so in its status, the other pages here)
@@ -406,10 +448,13 @@ mgu.run({
             }
             return ui.image('MAIN_GFX', cv);
         }
-        const go = (i) => { page = i; return render(); };
-        BUTTONS.forEach((b, i) => ui.onClick(b, () => go(i)));
+        const go = (i) => { if (i >= 0 && i < pages().length) page = i; return render(); };
+        BUTTONS.forEach((b, i) => {
+            ui.onClick(b, () => go(i));
+            ctx.hideButton(b);
+        });
         ctx.onTab(go);
-        settings.onChange((k) => { if (k === 'sootMax' && demo) demo.thr = threshold(); if (k === 'demo') { regen = null; } });
+        settings.onChange((k) => { if (k === 'sootMax' && demo) demo.thr = threshold(); if (k === 'demo') { regen = null; } if (k === 'experimentalRegen') { if (!settings.get(k) && page === 3) page = 0; } });
         // every screen refresh (60 fps) with the GPU renderer; 4 fps in software (PNG frames)
         ctx.loop('MAIN', 4, render);
         tick();

@@ -11,7 +11,7 @@ The **iDrive 8** versions of the apps in [mgu-apps](https://github.com/giuseppes
 |---|---|---|---|
 | **True Time** | [`true-time/`](true-time) | `true_time_id8` | Acceleration and braking times, measured and corrected for the road's slope (the DSC's acceleration sensor) |
 | **ECU Live Data** | [`ecu-live-data/`](ecu-live-data) | `boostline_id8` | Live engine data from the DDE (diesel) or DME (petrol), CSV logs, road dyno and drag timer, read-only. A fork of [boostline-idrive](https://github.com/clucraft/boostline-idrive) (MIT) |
-| **DPF Monitoring** | [`dpf-monitoring/`](dpf-monitoring) | `dpf_id8` | The diesel particulate filter: soot and ash load, regenerations, differential pressure and exhaust temperatures from the DDE, read-only |
+| **DPF Monitoring** | [`dpf-monitoring/`](dpf-monitoring) | `dpf_id8` | The diesel particulate filter: soot and ash load, regenerations, differential pressure and exhaust temperatures from the DDE, read-only. [sas46's DPF Monitor](https://github.com/sas46/idrive7_dpf_app) (MIT) |
 
 ## Install from the MGU Store
 
@@ -90,6 +90,7 @@ Each app is worked on from its own folder: `cd true-time` (or `ecu-live-data`, `
 - [idrive7-apps](https://github.com/cauliflowermossgrape/idrive7-apps) by cauliflowermossgrape (MIT): the kit, its iDrive 8 screens and placement, the emulator and the installer. Its renderer and the emulator's draw engine come from mgu-render (GPL-3.0-or-later, see the kit's `kit/renderd`).
 - [mgu-store](https://github.com/robertnisipeanu/mgu-store) by Robert Nisipeanu (GPL-3.0): mgu-render, the renderer the apps draw with on iDrive 8, and the Store's publishing rules. Nothing of the Store is copied here; the apps talk to its renderer through the kit.
 - [Boostline](https://github.com/clucraft/Boostline) and [boostline-idrive](https://github.com/clucraft/boostline-idrive) (MIT): ECU Live Data's engine code.
+- [DPF Monitor](https://github.com/sas46/idrive7_dpf_app) by sas46 (MIT), grown from 2bhacker9's DPF prototype ([idrive7-apps issue #88](https://github.com/cauliflowermossgrape/idrive7-apps/issues/88)): DPF Monitoring from 1.1.0.
 - Ideas for iDrive 8, no code: IterioDev's [car-apps](https://github.com/IterioDev/car-apps) (PolyForm Strict) and iDrive Labs' [Sideways](https://github.com/idrive-labs/sideways) (GPL-3.0) showed how apps draw on iDrive 8's screen.
 
 ## Disclaimer
