@@ -175,7 +175,9 @@ mgu.run({
         function tick() {
             if (demo) demoVals = demo.sample();
             const d = snap = data();
-            const active = d.regenReq === 4;
+            // 44BB: 4 = running and 6 = requested (sas46's X5 G05 25d); any other value but 0 counts as running, as
+            // before 1.1.0, so a DDE that says "running" another way still has its regenerations seen and logged
+            const active = G.isNum(d.regenReq) && d.regenReq !== 0 && d.regenReq !== 6;
             if (regen && regen.demo !== d.demo) regen = null;           // switched between demo and the car
             if (active && !regen) {
                 regen = { t0: mono(), date: Date.now(), sootStart: d.soot, peakT: d.tDpf, demo: d.demo };
@@ -279,7 +281,8 @@ mgu.run({
             let title, sub, dot = null;
             if (running()) {
                 title = 'Regeneration running'; dot = P.heat;
-                sub = 'For ' + dur((mono() - regen.t0) / 1000) + ' min  -  please keep the engine running';
+                sub = 'For ' + dur((mono() - regen.t0) / 1000) + ' min  -  please keep the engine running' +
+                    (G.isNum(d.regenReq) && d.regenReq !== 4 ? '  (DID 44BB: ' + d.regenReq + ')' : '');
             } else if (d.regenReq === 6) { title = 'Regeneration requested'; dot = P.warn; sub = 'Waiting for regeneration conditions'; }
             else if (G.isNum(d.regenReq) && d.regenReq !== 0 && d.regenReq !== 4) { title = 'Regeneration status unknown'; sub = 'DID 44BB: ' + d.regenReq; }
             else if (!G.isNum(d.soot)) { title = 'No data'; sub = why('soot'); }

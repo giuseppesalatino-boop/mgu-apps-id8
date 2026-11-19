@@ -1,6 +1,6 @@
 {
   "name": "dpf-monitoring-id8",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "DPF Monitoring: the diesel particulate filter on the BMW iDrive 8 head unit, read-only",
   "private": true,
   "license": "MIT",
